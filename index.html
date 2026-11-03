@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Commute Flow Map</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  >
+
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+
+<body>
+
+  <div class="title-box">
+    <h1>통근·통학 이동 흐름 지도</h1>
+    <p>KOSIS 인구총조사 2020 · 서울·인천·경기</p>
+  </div>
+
+  <div class="controls">
+    <select id="regionSelect">
+      <option value="capital">서울·인천·경기</option>
+    </select>
+  </div>
+
+  <div id="map"></div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+  </script>
+
+  <script src="./js/map.js"></script>
+
+</body>
+</html>
