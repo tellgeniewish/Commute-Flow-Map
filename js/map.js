@@ -7,7 +7,6 @@ const map = L.map("map", {
   attributionControl: true
 });
 
-// 수도권 중심
 map.setView([37.45, 126.95], 8);
 
 
@@ -15,8 +14,7 @@ map.setView([37.45, 126.95], 8);
 // 2. 배경지도
 // ============================================================
 
-// 기존 OSM보다 조금 덜 튀게 보이도록 투명도 낮춤
-const baseMap = L.tileLayer(
+L.tileLayer(
   "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
   {
     maxZoom: 18,
@@ -38,7 +36,7 @@ const selectedRegions = [
 
 
 // ============================================================
-// 4. KOSIS 이동선용 대표 좌표
+// 4. OD 대표 좌표
 // ============================================================
 
 const centers = {
@@ -49,21 +47,228 @@ const centers = {
 
 
 // ============================================================
-// 5. GeoJSON 불러오기
+// 5. 두 지점 사이의 곡선 좌표 생성
+// ============================================================
+
+function createCurvePoints(
+  origin,
+  destination,
+  bend = 0.25,
+  steps = 100
+) {
+
+  const lat1 = origin[0];
+  const lng1 = origin[1];
+
+  const lat2 = destination[0];
+  const lng2 = destination[1];
+
+
+  // 두 점의 중간
+  const midLat = (lat1 + lat2) / 2;
+  const midLng = (lng1 + lng2) / 2;
+
+
+  // 방향 벡터
+  const dLat = lat2 - lat1;
+  const dLng = lng2 - lng1;
+
+
+  // 진행 방향의 수직 방향으로 제어점 이동
+  // A→B와 B→A가 서로 반대쪽으로 휘게 됨
+  const controlLat =
+    midLat + dLng * bend;
+
+  const controlLng =
+    midLng - dLat * bend;
+
+
+  const points = [];
+
+
+  // Quadratic Bezier
+  for (let i = 0; i <= steps; i++) {
+
+    const t = i / steps;
+
+    const oneMinusT = 1 - t;
+
+
+    const lat =
+      oneMinusT * oneMinusT * lat1 +
+      2 * oneMinusT * t * controlLat +
+      t * t * lat2;
+
+
+    const lng =
+      oneMinusT * oneMinusT * lng1 +
+      2 * oneMinusT * t * controlLng +
+      t * t * lng2;
+
+
+    points.push([lat, lng]);
+
+  }
+
+
+  return points;
+}
+
+
+// ============================================================
+// 6. 이동량에 따라 애니메이션 점 개수 결정
+// ============================================================
+
+function getParticleCount(value) {
+
+  if (value >= 1000000) {
+    return 4;
+  }
+
+  if (value >= 500000) {
+    return 3;
+  }
+
+  if (value >= 150000) {
+    return 2;
+  }
+
+  return 1;
+}
+
+
+// ============================================================
+// 7. 이동량에 따라 점 이동 속도 결정
+// ============================================================
+
+function getAnimationDuration(value) {
+
+  if (value >= 1000000) {
+    return 4200;
+  }
+
+  if (value >= 500000) {
+    return 4800;
+  }
+
+  if (value >= 150000) {
+    return 5400;
+  }
+
+  return 6200;
+}
+
+
+// ============================================================
+// 8. 움직이는 점 생성
+// ============================================================
+
+function animateParticle(
+  points,
+  duration,
+  phase = 0
+) {
+
+  const marker =
+    L.circleMarker(
+      points[0],
+      {
+        radius: 4,
+
+        color: "#ffffff",
+        weight: 1,
+
+        fillColor: "#238ca5",
+        fillOpacity: 0.95,
+
+        interactive: false
+      }
+    ).addTo(map);
+
+
+  function frame(timestamp) {
+
+    // phase를 이용해 여러 점의 출발 시점을 분산
+    const progress =
+      ((timestamp / duration) + phase) % 1;
+
+
+    const position =
+      progress * (points.length - 1);
+
+
+    const index =
+      Math.floor(position);
+
+
+    const nextIndex =
+      Math.min(
+        index + 1,
+        points.length - 1
+      );
+
+
+    const fraction =
+      position - index;
+
+
+    // 점과 점 사이를 다시 보간해서
+    // 움직임을 부드럽게 처리
+    const lat =
+      points[index][0] +
+      (
+        points[nextIndex][0] -
+        points[index][0]
+      ) * fraction;
+
+
+    const lng =
+      points[index][1] +
+      (
+        points[nextIndex][1] -
+        points[index][1]
+      ) * fraction;
+
+
+    marker.setLatLng(
+      [lat, lng]
+    );
+
+
+    requestAnimationFrame(frame);
+
+  }
+
+
+  requestAnimationFrame(frame);
+}
+
+
+// ============================================================
+// 9. GeoJSON 불러오기
 // ============================================================
 
 fetch("./geo/korea_sido.geojson")
+
   .then(response => {
+
     if (!response.ok) {
-      throw new Error("GeoJSON 파일을 불러오지 못했습니다.");
+
+      throw new Error(
+        "GeoJSON 파일을 불러오지 못했습니다."
+      );
+
     }
 
     return response.json();
+
   })
+
   .then(geoData => {
 
+
     // --------------------------------------------------------
-    // 기본 스타일
+    // 지역 기본 스타일
     // --------------------------------------------------------
 
     function getRegionStyle(feature) {
@@ -71,28 +276,29 @@ fetch("./geo/korea_sido.geojson")
       const name =
         feature.properties.CTP_KOR_NM;
 
+
       const selected =
         selectedRegions.includes(name);
 
+
       return {
 
-        // 경계선
-        color: selected
-          ? "#8fb8bd"
-          : "#cfcfcf",
+        color:
+          selected
+            ? "#8fb8bd"
+            : "#cfcfcf",
 
-        weight: selected
-          ? 1.6
-          : 1,
+        weight:
+          selected
+            ? 1.6
+            : 1,
 
-        // 내부 색상
-        fillColor: selected
-          ? "#c8eee6"
-          : "#eeeeee",
+        fillColor:
+          selected
+            ? "#c8eee6"
+            : "#eeeeee",
 
-        fillOpacity: selected
-          ? 0.55
-          : 0.55
+        fillOpacity: 0.55
 
       };
 
@@ -100,19 +306,22 @@ fetch("./geo/korea_sido.geojson")
 
 
     // --------------------------------------------------------
-    // hover 이벤트
+    // 지역 hover
     // --------------------------------------------------------
 
-    function onEachRegion(feature, layer) {
+    function onEachRegion(
+      feature,
+      layer
+    ) {
 
       const name =
         feature.properties.CTP_KOR_NM;
+
 
       const selected =
         selectedRegions.includes(name);
 
 
-      // 지역명 표시
       layer.bindTooltip(
         name,
         {
@@ -123,72 +332,79 @@ fetch("./geo/korea_sido.geojson")
       );
 
 
-      // 마우스 올렸을 때
-      layer.on("mouseover", function () {
+      layer.on(
+        "mouseover",
+        function () {
 
-        layer.setStyle({
+          layer.setStyle({
 
-          fillColor: selected
-            ? "#9fd8cc"
-            : "#dddddd",  // 기존보다 훨씬 연한 회색
+            fillColor:
+              selected
+                ? "#9fd8cc"
+                : "#dddddd",
 
-          fillOpacity: selected
-            ? 0.8
-            : 0.7,
+            fillOpacity:
+              selected
+                ? 0.8
+                : 0.7,
 
-          color: selected
-            ? "#557d68"
-            : "#999999",
+            color:
+              selected
+                ? "#557d68"
+                : "#999999",
 
-          weight: 2
+            weight: 2
 
-        });
+          });
 
-        layer.bringToFront();
+        }
+      );
 
-      });
 
+      layer.on(
+        "mouseout",
+        function () {
 
-      // 마우스 뗐을 때
-      layer.on("mouseout", function () {
+          layer.setStyle(
+            getRegionStyle(feature)
+          );
 
-        layer.setStyle(
-          getRegionStyle(feature)
-        );
-
-      });
+        }
+      );
 
     }
 
 
     // --------------------------------------------------------
-    // GeoJSON 지도 추가
+    // GeoJSON 추가
     // --------------------------------------------------------
 
-    const regionLayer =
-      L.geoJSON(
-        geoData,
-        {
-          style: getRegionStyle,
-          onEachFeature: onEachRegion
-        }
-      ).addTo(map);
+    L.geoJSON(
+      geoData,
+      {
+        style: getRegionStyle,
+        onEachFeature: onEachRegion
+      }
+    ).addTo(map);
 
 
     // --------------------------------------------------------
-    // 수도권 화면 범위 자동 맞춤
+    // 수도권 범위
     // --------------------------------------------------------
 
     const capitalFeatures =
-      geoData.features.filter(feature =>
-        selectedRegions.includes(
-          feature.properties.CTP_KOR_NM
-        )
+      geoData.features.filter(
+        feature =>
+          selectedRegions.includes(
+            feature.properties.CTP_KOR_NM
+          )
       );
 
 
     const capitalLayer =
-      L.geoJSON(capitalFeatures);
+      L.geoJSON(
+        capitalFeatures
+      );
 
 
     map.fitBounds(
@@ -200,7 +416,7 @@ fetch("./geo/korea_sido.geojson")
 
 
     // --------------------------------------------------------
-    // GeoJSON 위에 KOSIS 이동선 추가
+    // OD 데이터 불러오기
     // --------------------------------------------------------
 
     loadCommuteFlows();
@@ -218,7 +434,7 @@ fetch("./geo/korea_sido.geojson")
 
 
 // ============================================================
-// 6. KOSIS 통근·통학 데이터 불러오기
+// 10. KOSIS OD 데이터 불러오기
 // ============================================================
 
 function loadCommuteFlows() {
@@ -228,9 +444,11 @@ function loadCommuteFlows() {
     .then(response => {
 
       if (!response.ok) {
+
         throw new Error(
           "capital_2020.json을 불러오지 못했습니다."
         );
+
       }
 
       return response.json();
@@ -239,6 +457,7 @@ function loadCommuteFlows() {
 
     .then(data => {
 
+
       console.log(
         "KOSIS 원본 데이터:",
         data
@@ -246,77 +465,95 @@ function loadCommuteFlows() {
 
 
       // ------------------------------------------------------
-      // T1 = 전체 통근통학인구
+      // T1 전체 통근통학 인구만 사용
       //
-      // 계/기타 제거
-      // 동일 지역 → 동일 지역 제거
+      // 계 제거
+      // 기타 제거
+      // 동일 지역 내부이동 제거
       // ------------------------------------------------------
 
       const flows =
-        data.filter(d =>
+        data.filter(
+          d =>
 
-          d.ITM_ID === "T1" &&
+            d.ITM_ID === "T1" &&
 
-          d.C1_NM !== "계" &&
-          d.C2_NM !== "계" &&
+            d.C1_NM !== "계" &&
+            d.C2_NM !== "계" &&
 
-          d.C2_NM !== "기타" &&
+            d.C1_NM !== "기타" &&
+            d.C2_NM !== "기타" &&
 
-          d.C1_NM !== d.C2_NM &&
+            d.C1_NM !== d.C2_NM &&
 
-          centers[d.C1_NM] &&
-          centers[d.C2_NM]
-
+            centers[d.C1_NM] &&
+            centers[d.C2_NM]
         );
 
 
       console.log(
-        "지도용 이동 데이터:",
+        "지도용 OD 데이터:",
         flows
       );
 
 
       // ------------------------------------------------------
-      // 이동선 표시
+      // OD별 곡선 + 애니메이션
       // ------------------------------------------------------
 
       flows.forEach(flow => {
 
+
         const origin =
           centers[flow.C1_NM];
 
+
         const destination =
           centers[flow.C2_NM];
+
 
         const value =
           Number(flow.DT);
 
 
-        // 이동량이 많을수록 약간 굵게
+        // 곡선 생성
+        const curvePoints =
+          createCurvePoints(
+            origin,
+            destination,
+            0.28,
+            120
+          );
+
+
+        // 이동량 기반 선 굵기
         const weight =
           Math.max(
             2,
             Math.min(
-              8,
+              7,
               Math.sqrt(value) / 300
             )
           );
 
 
+        // 곡선 표시
         const line =
           L.polyline(
-            [
-              origin,
-              destination
-            ],
+            curvePoints,
             {
-              color: "#4b8fb3",
+              color: "#4b9bb0",
+
               weight: weight,
-              opacity: 0.7,
-              dashArray: "8 10"
+
+              opacity: 0.55
             }
           ).addTo(map);
 
+
+        // ----------------------------------------------------
+        // Popup
+        // ----------------------------------------------------
 
         line.bindPopup(
           `
@@ -326,12 +563,43 @@ function loadCommuteFlows() {
             ${flow.C2_NM}
           </strong>
 
-          <br>
+          <br><br>
 
           통근·통학 인구:
-          ${value.toLocaleString()}명
+          <strong>
+            ${value.toLocaleString()}명
+          </strong>
           `
         );
+
+
+        // ----------------------------------------------------
+        // 움직이는 점
+        // ----------------------------------------------------
+
+        const particleCount =
+          getParticleCount(value);
+
+
+        const duration =
+          getAnimationDuration(value);
+
+
+        for (
+          let i = 0;
+          i < particleCount;
+          i++
+        ) {
+
+          animateParticle(
+            curvePoints,
+            duration,
+
+            // 0 ~ 1 사이에 균등 배치
+            i / particleCount
+          );
+
+        }
 
       });
 
@@ -349,13 +617,18 @@ function loadCommuteFlows() {
             coords,
             {
               radius: 5,
+
               color: "#35657f",
+
               fillColor: "#ffffff",
               fillOpacity: 1,
+
               weight: 2
             }
           )
+
             .addTo(map)
+
             .bindTooltip(
               name,
               {
