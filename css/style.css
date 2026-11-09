@@ -62,8 +62,22 @@ body {
   box-shadow: none;
 }
 
-.leaflet-interactive:focus {
-  outline: none;
+.region-tooltip-name {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+
+.region-tooltip-label {
+  font-size: 11px;
+  color: #888;
+  margin-bottom: 2px;
+}
+
+.region-tooltip-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #9E3D63;
 }
 
 .leaflet-interactive:focus {
@@ -84,4 +98,38 @@ body {
   border-left: 14px solid currentColor;
 
   transform-origin: center;
+}
+
+.flow-legend {
+  background: rgba(255, 255, 255, 0.94);
+  padding: 14px 16px;
+  border-radius: 8px;
+
+  font-size: 13px;
+  color: #333;
+
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+
+  line-height: 1.6;
+}
+
+.legend-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.legend-color {
+  display: inline-block;
+
+  width: 14px;
+  height: 14px;
+
+  border-radius: 50%;
 }

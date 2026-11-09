@@ -45,16 +45,18 @@ const centers = {
   "경기도": [37.2750, 127.0095]
 };
 
+// 지역별 유입 통근·통학 인구
+let inflowByRegion = {};
 
 // ============================================================
-// 5. 두 지점 사이의 곡선 좌표 생성
+// 5. 목적지로 부드럽게 휘어 들어가는 이동 경로
 // ============================================================
 
 function createCurvePoints(
   origin,
   destination,
-  bend = 0.25,
-  steps = 100
+  bend = 0.22,
+  steps = 160
 ) {
 
   const lat1 = origin[0];
@@ -64,76 +66,109 @@ function createCurvePoints(
   const lng2 = destination[1];
 
 
-  // 두 점의 중간
-  const midLat = (lat1 + lat2) / 2;
-  const midLng = (lng1 + lng2) / 2;
+  const dLat =
+    lat2 - lat1;
+
+  const dLng =
+    lng2 - lng1;
 
 
-  // 방향 벡터
-  const dLat = lat2 - lat1;
-  const dLng = lng2 - lng1;
+  const distance =
+    Math.sqrt(
+      dLat * dLat +
+      dLng * dLng
+    ) || 1;
 
 
-  // 진행 방향의 수직 방향으로 제어점 이동
-  // A→B와 B→A가 서로 반대쪽으로 휘게 됨
+  // 진행 방향의 오른쪽 방향 단위벡터
+  const rightLat =
+    dLng / distance;
+
+  const rightLng =
+    -dLat / distance;
+
+
+  // ----------------------------------------------------------
+  // 제어점
+  //
+  // 출발 → 살짝 오른쪽으로 휨 → destination으로 수렴
+  // ----------------------------------------------------------
+
+  const midLat =
+    (lat1 + lat2) / 2;
+
+  const midLng =
+    (lng1 + lng2) / 2;
+
+
   const controlLat =
-    midLat + dLng * bend;
+    midLat +
+    rightLat *
+    distance *
+    bend;
 
   const controlLng =
-    midLng - dLat * bend;
+    midLng +
+    rightLng *
+    distance *
+    bend;
 
 
   const points = [];
 
 
   // Quadratic Bezier
-  for (let i = 0; i <= steps; i++) {
+  for (
+    let i = 0;
+    i <= steps;
+    i++
+  ) {
 
-    const t = i / steps;
+    const t =
+      i / steps;
 
-    const oneMinusT = 1 - t;
+    const oneMinusT =
+      1 - t;
 
 
     const lat =
-      oneMinusT * oneMinusT * lat1 +
-      2 * oneMinusT * t * controlLat +
-      t * t * lat2;
+      oneMinusT *
+      oneMinusT *
+      lat1 +
+
+      2 *
+      oneMinusT *
+      t *
+      controlLat +
+
+      t *
+      t *
+      lat2;
 
 
     const lng =
-      oneMinusT * oneMinusT * lng1 +
-      2 * oneMinusT * t * controlLng +
-      t * t * lng2;
+      oneMinusT *
+      oneMinusT *
+      lng1 +
+
+      2 *
+      oneMinusT *
+      t *
+      controlLng +
+
+      t *
+      t *
+      lng2;
 
 
-    points.push([lat, lng]);
+    points.push(
+      [lat, lng]
+    );
 
   }
 
 
   return points;
-}
-
-
-// ============================================================
-// 6. 이동량에 따라 애니메이션 점 개수 결정
-// ============================================================
-
-function getParticleCount(value) {
-
-  if (value >= 1000000) {
-    return 4;
-  }
-
-  if (value >= 500000) {
-    return 3;
-  }
-
-  if (value >= 150000) {
-    return 2;
-  }
-
-  return 1;
 }
 
 
@@ -158,159 +193,522 @@ function getAnimationDuration(value) {
   return 6200;
 }
 
-
 // ============================================================
-// 8. 움직이는 화살표 생성
+// 흐르는 유선형 화살표
 // ============================================================
 
-function animateArrow(
+function animateFlowArrow(
   points,
   duration,
   style,
-  phase = 0
+  delay = 0
 ) {
 
-  const arrowHtml = `
-    <div
-      class="flow-arrow-inner"
-      style="
-        color:${style.color};
-        border-top-width:${style.arrowSize / 2}px;
-        border-bottom-width:${style.arrowSize / 2}px;
-        border-left-width:${style.arrowSize}px;
-      "
-    ></div>
-  `;
+  // 하나의 OD당 하나의 Canvas 생성
+  const canvas =
+    L.DomUtil.create(
+      "canvas",
+      "flow-canvas"
+    );
+
+  const size =
+    map.getSize();
 
 
-  const icon =
-    L.divIcon({
-      className: "flow-arrow",
-      html: arrowHtml,
-      iconSize: [
-        style.arrowSize,
-        style.arrowSize
-      ],
-      iconAnchor: [
-        style.arrowSize / 2,
-        style.arrowSize / 2
-      ]
+  canvas.width =
+    size.x;
+
+  canvas.height =
+    size.y;
+
+
+  canvas.style.position = "absolute";
+  canvas.style.left = "0";
+  canvas.style.top = "0";
+  canvas.style.zIndex = "450";
+  canvas.style.pointerEvents = "none";
+
+
+  map.getContainer()
+  .appendChild(canvas);
+
+
+  const ctx =
+    canvas.getContext("2d");
+
+
+  // ----------------------------------------------------------
+  // 화면 크기 변경
+  // ----------------------------------------------------------
+
+  function resizeCanvas() {
+
+    const newSize =
+      map.getSize();
+
+
+    canvas.width =
+      newSize.x;
+
+    canvas.height =
+      newSize.y;
+
+  }
+
+
+  map.on(
+    "resize zoom move",
+    resizeCanvas
+  );
+
+
+  // ----------------------------------------------------------
+  // 화살표 그리기
+  // ----------------------------------------------------------
+
+  function drawArrow(progress) {
+
+  ctx.clearRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+
+  const total =
+    points.length;
+
+
+  const headIndex =
+    Math.floor(
+      progress * (total - 1)
+    );
+
+
+  const tailLength =
+    Math.max(
+      16,
+      Math.floor(total * 0.40)
+    );
+
+
+  const startIndex =
+    Math.max(
+      0,
+      headIndex - tailLength
+    );
+
+
+  if (
+    headIndex <= startIndex + 4
+  ) {
+    return;
+  }
+
+
+  // ==========================================================
+  // 화면 좌표로 변환
+  // ==========================================================
+
+  const visiblePoints = [];
+
+  for (
+    let i = startIndex;
+    i <= headIndex;
+    i++
+  ) {
+
+    visiblePoints.push(
+      map.latLngToContainerPoint(
+        points[i]
+      )
+    );
+
+  }
+
+
+  if (
+    visiblePoints.length < 5
+  ) {
+    return;
+  }
+
+
+  // ==========================================================
+  // 하나의 화살표 Polygon 생성
+  // ==========================================================
+
+  const leftSide = [];
+  const rightSide = [];
+
+
+  const bodyEnd =
+    visiblePoints.length - 2;
+
+
+  for (
+    let i = 0;
+    i < bodyEnd;
+    i++
+  ) {
+
+    const current =
+      visiblePoints[i];
+
+
+    const next =
+      visiblePoints[
+        Math.min(
+          i + 1,
+          visiblePoints.length - 1
+        )
+      ];
+
+
+    const dx =
+      next.x - current.x;
+
+    const dy =
+      next.y - current.y;
+
+
+    const length =
+      Math.sqrt(
+        dx * dx +
+        dy * dy
+      ) || 1;
+
+
+    // 진행 방향에 수직인 벡터
+    const nx =
+      -dy / length;
+
+    const ny =
+      dx / length;
+
+
+    const ratio =
+      i / bodyEnd;
+
+
+    // 꼬리는 얇고
+    // 머리 쪽으로 갈수록 자연스럽게 두꺼워짐
+    const halfWidth =
+      0.4 +
+      ratio *
+      style.lineWeight *
+      0.75;
+
+
+    leftSide.push({
+      x:
+        current.x +
+        nx * halfWidth,
+
+      y:
+        current.y +
+        ny * halfWidth
     });
 
 
-  const marker =
-    L.marker(
-      points[0],
-      {
-        icon: icon,
-        interactive: false
-      }
-    ).addTo(map);
+    rightSide.push({
+      x:
+        current.x -
+        nx * halfWidth,
 
+      y:
+        current.y -
+        ny * halfWidth
+    });
+
+  }
+
+
+  // ==========================================================
+  // 머리 부분 계산
+  // ==========================================================
+
+  const head =
+    visiblePoints[
+      visiblePoints.length - 1
+    ];
+
+
+  // ==========================================================
+  // 화살표 머리 방향
+  // 출발지 → 도착지 전체 방향을 고정해서 사용
+  // ==========================================================
+
+  const start =
+    map.latLngToContainerPoint(
+      points[0]
+    );
+
+  const end =
+    map.latLngToContainerPoint(
+      points[points.length - 1]
+    );
+
+
+  const dx =
+    end.x - start.x;
+
+  const dy =
+    end.y - start.y;
+
+
+  const length =
+    Math.sqrt(
+      dx * dx +
+      dy * dy
+    ) || 1;
+
+
+  const ux =
+    dx / length;
+
+  const uy =
+    dy / length;
+
+
+  const nx =
+    -uy;
+
+  const ny =
+    ux;
+
+  const arrowLength =
+    style.arrowSize * 1.35;
+
+
+  const arrowHalfWidth =
+    style.arrowSize * 0.52;
+
+
+  // 화살촉 끝
+  const tip = {
+    x:
+      head.x +
+      ux * arrowLength,
+
+    y:
+      head.y +
+      uy * arrowLength
+  };
+
+
+  // 머리 좌측
+  const headLeft = {
+    x:
+      head.x +
+      nx * arrowHalfWidth,
+
+    y:
+      head.y +
+      ny * arrowHalfWidth
+  };
+
+
+  // 머리 우측
+  const headRight = {
+    x:
+      head.x -
+      nx * arrowHalfWidth,
+
+    y:
+      head.y -
+      ny * arrowHalfWidth
+  };
+
+
+  // ==========================================================
+  // 꼬리 + 몸통 + 머리를 하나의 Path로 그리기
+  // ==========================================================
+
+  ctx.beginPath();
+
+
+  ctx.moveTo(
+    leftSide[0].x,
+    leftSide[0].y
+  );
+
+
+  // 왼쪽 몸통
+  for (
+    let i = 1;
+    i < leftSide.length;
+    i++
+  ) {
+
+    ctx.lineTo(
+      leftSide[i].x,
+      leftSide[i].y
+    );
+
+  }
+
+
+  // 머리 왼쪽
+  ctx.lineTo(
+    headLeft.x,
+    headLeft.y
+  );
+
+
+  // 화살촉
+  ctx.lineTo(
+    tip.x,
+    tip.y
+  );
+
+
+  // 머리 오른쪽
+  ctx.lineTo(
+    headRight.x,
+    headRight.y
+  );
+
+
+  // 오른쪽 몸통 역순
+  for (
+    let i =
+      rightSide.length - 1;
+
+    i >= 0;
+    i--
+  ) {
+
+    ctx.lineTo(
+      rightSide[i].x,
+      rightSide[i].y
+    );
+
+  }
+
+
+  ctx.closePath();
+
+
+  // ==========================================================
+  // 은은한 그라데이션
+  // ==========================================================
+
+  const tail =
+    visiblePoints[0];
+
+
+  const gradient =
+    ctx.createLinearGradient(
+      tail.x,
+      tail.y,
+      tip.x,
+      tip.y
+    );
+
+
+  gradient.addColorStop(
+    0,
+    hexToRgba(
+      style.color,
+      0.04
+    )
+  );
+
+
+  gradient.addColorStop(
+    0.45,
+    hexToRgba(
+      style.color,
+      0.20
+    )
+  );
+
+
+  gradient.addColorStop(
+    1,
+    hexToRgba(
+      style.color,
+      0.58
+    )
+  );
+
+
+  ctx.fillStyle =
+    gradient;
+
+
+  ctx.fill();
+
+}
+
+
+  // ----------------------------------------------------------
+  // 애니메이션
+  // ----------------------------------------------------------
 
   function frame(timestamp) {
 
     const progress =
       (
-        timestamp / duration +
-        phase
-      ) % 1;
+        (timestamp + delay) % duration
+      ) /
+      duration;
 
 
-    const position =
-      progress *
-      (points.length - 1);
+    drawArrow(progress);
 
 
-    const index =
-      Math.floor(position);
-
-
-    const nextIndex =
-      Math.min(
-        index + 1,
-        points.length - 1
-      );
-
-
-    const fraction =
-      position - index;
-
-
-    const lat =
-      points[index][0] +
-      (
-        points[nextIndex][0] -
-        points[index][0]
-      ) * fraction;
-
-
-    const lng =
-      points[index][1] +
-      (
-        points[nextIndex][1] -
-        points[index][1]
-      ) * fraction;
-
-
-    marker.setLatLng(
-      [lat, lng]
+    requestAnimationFrame(
+      frame
     );
-
-
-    // --------------------------------------------
-    // 이동 방향에 맞춰 화살표 회전
-    // --------------------------------------------
-
-    const point1 =
-      map.latLngToLayerPoint(
-        points[index]
-      );
-
-
-    const point2 =
-      map.latLngToLayerPoint(
-        points[nextIndex]
-      );
-
-
-    const angle =
-      Math.atan2(
-        point2.y - point1.y,
-        point2.x - point1.x
-      ) * 180 / Math.PI;
-
-
-    const element =
-      marker.getElement();
-
-
-    if (element) {
-
-      const arrow =
-        element.querySelector(
-          ".flow-arrow-inner"
-        );
-
-
-      if (arrow) {
-
-        arrow.style.transform =
-          `rotate(${angle}deg)`;
-
-      }
-
-    }
-
-
-    requestAnimationFrame(frame);
 
   }
 
 
-  requestAnimationFrame(frame);
+  requestAnimationFrame(
+    frame
+  );
+
 }
 
+function hexToRgba(
+  hex,
+  alpha
+) {
+
+  const value =
+    hex.replace(
+      "#",
+      ""
+    );
+
+
+  const r =
+    parseInt(
+      value.substring(0, 2),
+      16
+    );
+
+
+  const g =
+    parseInt(
+      value.substring(2, 4),
+      16
+    );
+
+
+  const b =
+    parseInt(
+      value.substring(4, 6),
+      16
+    );
+
+
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+
+}
 
 // ============================================================
 // 9. GeoJSON 불러오기
@@ -391,10 +789,38 @@ fetch("./geo/korea_sido.geojson")
 
 
       layer.bindTooltip(
-        name,
+        () => {
+
+          const inflow =
+            inflowByRegion[name] || 0;
+
+
+          if (selectedRegions.includes(name)) {
+
+            return `
+              <div class="region-tooltip-name">
+                ${name}
+              </div>
+
+              <div class="region-tooltip-label">
+                유입 통근·통학 인구
+              </div>
+
+              <div class="region-tooltip-value">
+                ${inflow.toLocaleString()}명
+              </div>
+            `;
+
+          }
+
+
+          return name;
+
+        },
         {
           sticky: true,
           direction: "top",
+          offset: [12, -10],
           className: "region-tooltip"
         }
       );
@@ -558,6 +984,40 @@ function loadCommuteFlows() {
             centers[d.C2_NM]
         );
 
+        // ------------------------------------------------------
+        // 지역별 유입 통근·통학 인구 계산
+        // C2_NM = 도착지
+        // ------------------------------------------------------
+
+        inflowByRegion = {};
+
+
+        flows.forEach(flow => {
+
+          const destination =
+            flow.C2_NM;
+
+          const value =
+            Number(flow.DT);
+
+
+          if (!inflowByRegion[destination]) {
+
+            inflowByRegion[destination] = 0;
+
+          }
+
+
+          inflowByRegion[destination] += value;
+
+        });
+
+
+        console.log(
+          "지역별 유입인구:",
+          inflowByRegion
+        );
+
 
       console.log(
         "지도용 OD 데이터:",
@@ -596,25 +1056,33 @@ function loadCommuteFlows() {
             flows.length
           );
 
+        // ----------------------------------------------------
         // 곡선 생성
+        // ----------------------------------------------------
+
         const curvePoints =
           createCurvePoints(
             origin,
             destination,
-            0.28,
-            120
+            0.38,
+            160
           );
 
-        // 곡선 표시
+
+        // ----------------------------------------------------
+        // 희미한 전체 이동 경로
+        // ----------------------------------------------------
+
         const line =
           L.polyline(
             curvePoints,
             {
               color: flowStyle.color,
-              weight: flowStyle.lineWeight,
-              opacity: 0.55
+              weight: 1,
+              opacity: 0.06
             }
           ).addTo(map);
+
 
         // ----------------------------------------------------
         // Popup
@@ -639,32 +1107,19 @@ function loadCommuteFlows() {
 
 
         // ----------------------------------------------------
-        // 움직이는 점
+        // 흐르는 화살표 애니메이션
         // ----------------------------------------------------
-
-        const particleCount =
-          getParticleCount(value);
-
 
         const duration =
           getAnimationDuration(value);
 
 
-        for (
-          let i = 0;
-          i < particleCount;
-          i++
-        ) {
-
-          animateArrow(
-            curvePoints,
-            duration,
-            flowStyle,
-            i / particleCount
-          );
-
-        }
-
+        animateFlowArrow(
+          curvePoints,
+          duration,
+          flowStyle,
+          rank * 500
+        );
       });
 
 
@@ -723,39 +1178,106 @@ function getFlowStyle(rank, total) {
 
   if (percentile < 20) {
     return {
-      color: "#263238",
-      arrowSize: 18,
-      lineWeight: 6
+      color: "#9E3D63",
+      arrowSize: 17,
+      lineWeight: 4.8
     };
   }
 
   if (percentile < 40) {
     return {
-      color: "#14805e",
-      arrowSize: 16,
-      lineWeight: 5
+      color: "#B95B7B",
+      arrowSize: 15,
+      lineWeight: 4.1
     };
   }
 
   if (percentile < 60) {
     return {
-      color: "#2155a6",
-      arrowSize: 14,
-      lineWeight: 4
+      color: "#D17A97",
+      arrowSize: 13,
+      lineWeight: 3.5
     };
   }
 
   if (percentile < 80) {
     return {
-      color: "#31a873",
-      arrowSize: 12,
+      color: "#E3A0B5",
+      arrowSize: 11,
       lineWeight: 3
     };
   }
 
   return {
-    color: "#70a7df",
-    arrowSize: 10,
-    lineWeight: 2
+    color: "#F0C6D2",
+    arrowSize: 9,
+    lineWeight: 2.5
   };
 }
+
+// ============================================================
+// 11. 이동량 순위 범례
+// ============================================================
+
+const legend = L.control({
+  position: "bottomleft"
+});
+
+legend.onAdd = function () {
+
+  const div =
+    L.DomUtil.create(
+      "div",
+      "flow-legend"
+    );
+
+  div.innerHTML = `
+    <div class="legend-title">
+      통근·통학 이동량 순위
+    </div>
+
+    <div class="legend-item">
+      <span
+        class="legend-color"
+        style="background:#8F2746;">
+      </span>
+      상위 0~20%
+    </div>
+
+    <div class="legend-item">
+      <span
+        class="legend-color"
+        style="background:#B8405E;">
+      </span>
+      상위 20~40%
+    </div>
+
+    <div class="legend-item">
+      <span
+        class="legend-color"
+        style="background:#D9657C;">
+      </span>
+      상위 40~60%
+    </div>
+
+    <div class="legend-item">
+      <span
+        class="legend-color"
+        style="background:#EA91A4;">
+      </span>
+      상위 60~80%
+    </div>
+
+    <div class="legend-item">
+      <span
+        class="legend-color"
+        style="background:#F3BBC7;">
+      </span>
+      상위 80~100%
+    </div>
+  `;
+
+  return div;
+};
+
+legend.addTo(map);
