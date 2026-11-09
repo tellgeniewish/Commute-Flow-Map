@@ -160,27 +160,49 @@ function getAnimationDuration(value) {
 
 
 // ============================================================
-// 8. 움직이는 점 생성
+// 8. 움직이는 화살표 생성
 // ============================================================
 
-function animateParticle(
+function animateArrow(
   points,
   duration,
+  style,
   phase = 0
 ) {
 
+  const arrowHtml = `
+    <div
+      class="flow-arrow-inner"
+      style="
+        color:${style.color};
+        border-top-width:${style.arrowSize / 2}px;
+        border-bottom-width:${style.arrowSize / 2}px;
+        border-left-width:${style.arrowSize}px;
+      "
+    ></div>
+  `;
+
+
+  const icon =
+    L.divIcon({
+      className: "flow-arrow",
+      html: arrowHtml,
+      iconSize: [
+        style.arrowSize,
+        style.arrowSize
+      ],
+      iconAnchor: [
+        style.arrowSize / 2,
+        style.arrowSize / 2
+      ]
+    });
+
+
   const marker =
-    L.circleMarker(
+    L.marker(
       points[0],
       {
-        radius: 4,
-
-        color: "#ffffff",
-        weight: 1,
-
-        fillColor: "#238ca5",
-        fillOpacity: 0.95,
-
+        icon: icon,
         interactive: false
       }
     ).addTo(map);
@@ -188,13 +210,16 @@ function animateParticle(
 
   function frame(timestamp) {
 
-    // phase를 이용해 여러 점의 출발 시점을 분산
     const progress =
-      ((timestamp / duration) + phase) % 1;
+      (
+        timestamp / duration +
+        phase
+      ) % 1;
 
 
     const position =
-      progress * (points.length - 1);
+      progress *
+      (points.length - 1);
 
 
     const index =
@@ -212,8 +237,6 @@ function animateParticle(
       position - index;
 
 
-    // 점과 점 사이를 다시 보간해서
-    // 움직임을 부드럽게 처리
     const lat =
       points[index][0] +
       (
@@ -233,6 +256,51 @@ function animateParticle(
     marker.setLatLng(
       [lat, lng]
     );
+
+
+    // --------------------------------------------
+    // 이동 방향에 맞춰 화살표 회전
+    // --------------------------------------------
+
+    const point1 =
+      map.latLngToLayerPoint(
+        points[index]
+      );
+
+
+    const point2 =
+      map.latLngToLayerPoint(
+        points[nextIndex]
+      );
+
+
+    const angle =
+      Math.atan2(
+        point2.y - point1.y,
+        point2.x - point1.x
+      ) * 180 / Math.PI;
+
+
+    const element =
+      marker.getElement();
+
+
+    if (element) {
+
+      const arrow =
+        element.querySelector(
+          ".flow-arrow-inner"
+        );
+
+
+      if (arrow) {
+
+        arrow.style.transform =
+          `rotate(${angle}deg)`;
+
+      }
+
+    }
 
 
     requestAnimationFrame(frame);
@@ -497,11 +565,18 @@ function loadCommuteFlows() {
       );
 
 
+
+      flows.sort(
+        (a, b) =>
+          Number(b.DT) -
+          Number(a.DT)
+      );
+
       // ------------------------------------------------------
       // OD별 곡선 + 애니메이션
       // ------------------------------------------------------
 
-      flows.forEach(flow => {
+      flows.forEach((flow, rank) => {
 
 
         const origin =
@@ -515,6 +590,11 @@ function loadCommuteFlows() {
         const value =
           Number(flow.DT);
 
+        const flowStyle =
+          getFlowStyle(
+            rank,
+            flows.length
+          );
 
         // 곡선 생성
         const curvePoints =
@@ -525,31 +605,16 @@ function loadCommuteFlows() {
             120
           );
 
-
-        // 이동량 기반 선 굵기
-        const weight =
-          Math.max(
-            2,
-            Math.min(
-              7,
-              Math.sqrt(value) / 300
-            )
-          );
-
-
         // 곡선 표시
         const line =
           L.polyline(
             curvePoints,
             {
-              color: "#4b9bb0",
-
-              weight: weight,
-
+              color: flowStyle.color,
+              weight: flowStyle.lineWeight,
               opacity: 0.55
             }
           ).addTo(map);
-
 
         // ----------------------------------------------------
         // Popup
@@ -591,11 +656,10 @@ function loadCommuteFlows() {
           i++
         ) {
 
-          animateParticle(
+          animateArrow(
             curvePoints,
             duration,
-
-            // 0 ~ 1 사이에 균등 배치
+            flowStyle,
             i / particleCount
           );
 
@@ -650,4 +714,48 @@ function loadCommuteFlows() {
 
     });
 
+}
+
+function getFlowStyle(rank, total) {
+
+  const percentile =
+    (rank / total) * 100;
+
+  if (percentile < 20) {
+    return {
+      color: "#263238",
+      arrowSize: 18,
+      lineWeight: 6
+    };
+  }
+
+  if (percentile < 40) {
+    return {
+      color: "#14805e",
+      arrowSize: 16,
+      lineWeight: 5
+    };
+  }
+
+  if (percentile < 60) {
+    return {
+      color: "#2155a6",
+      arrowSize: 14,
+      lineWeight: 4
+    };
+  }
+
+  if (percentile < 80) {
+    return {
+      color: "#31a873",
+      arrowSize: 12,
+      lineWeight: 3
+    };
+  }
+
+  return {
+    color: "#70a7df",
+    arrowSize: 10,
+    lineWeight: 2
+  };
 }
