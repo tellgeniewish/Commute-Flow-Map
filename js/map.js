@@ -941,7 +941,6 @@ fetch("./geo/korea_sido.geojson")
 
           }
 
-
           return name;
 
         },
@@ -953,6 +952,44 @@ fetch("./geo/korea_sido.geojson")
         }
       );
 
+      // ==========================================================
+      // 권역 클릭 전환
+      // ==========================================================
+
+      layer.on(
+        "click",
+        function () {
+
+          if (
+            [
+              "서울특별시",
+              "인천광역시",
+              "경기도"
+            ].includes(name)
+          ) {
+
+            window.location.search =
+              "?region=capital";
+
+            return;
+          }
+
+
+          if (
+            [
+              "부산광역시",
+              "울산광역시",
+              "경상남도"
+            ].includes(name)
+          ) {
+
+            window.location.search =
+              "?region=southeast";
+
+          }
+
+        }
+      );
 
       layer.on(
         "mouseover",
@@ -1031,10 +1068,10 @@ fetch("./geo/korea_sido.geojson")
     map.fitBounds(
       selectedLayer.getBounds(),
       {
-        padding: [
-          30,
-          30
-        ]
+        padding: [90, 90],
+        maxZoom: 7,
+        animate: true,
+        duration: 0.45
       }
     );
 
