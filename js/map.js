@@ -25,28 +25,147 @@ L.tileLayer(
 
 
 // ============================================================
-// 3. 현재 분석 대상 지역
+// 3. 권역별 설정
 // ============================================================
 
-const selectedRegions = [
-  "서울특별시",
-  "인천광역시",
-  "경기도"
-];
+const regionConfigs = {
+
+  capital: {
+
+    label:
+      "서울·인천·경기",
+
+    regions: [
+      "서울특별시",
+      "인천광역시",
+      "경기도"
+    ],
+
+    centers: {
+      "서울특별시": [
+        37.5665,
+        126.9780
+      ],
+
+      "인천광역시": [
+        37.4563,
+        126.7052
+      ],
+
+      "경기도": [
+        37.2750,
+        127.0095
+      ]
+    },
+
+    dataFile:
+      "./data/capital_2020.json"
+
+  },
 
 
-// ============================================================
-// 4. OD 대표 좌표
-// ============================================================
+  southeast: {
 
-const centers = {
-  "서울특별시": [37.5665, 126.9780],
-  "인천광역시": [37.4563, 126.7052],
-  "경기도": [37.2750, 127.0095]
+    label:
+      "부산·울산·경남",
+
+    regions: [
+      "부산광역시",
+      "울산광역시",
+      "경상남도"
+    ],
+
+    centers: {
+      "부산광역시": [
+        35.1796,
+        129.0756
+      ],
+
+      "울산광역시": [
+        35.5384,
+        129.3114
+      ],
+
+      "경상남도": [
+        35.2383,
+        128.6924
+      ]
+    },
+
+    dataFile:
+      "./data/busan_ulsan_gyeongnam_2020.json"
+
+  }
+
 };
+
+
+// ============================================================
+// URL에서 현재 권역 확인
+// ============================================================
+
+const urlParams =
+  new URLSearchParams(
+    window.location.search
+  );
+
+
+const requestedRegion =
+  urlParams.get("region");
+
+
+const currentRegionKey =
+  regionConfigs[requestedRegion]
+    ? requestedRegion
+    : "capital";
+
+
+const currentConfig =
+  regionConfigs[currentRegionKey];
+
+
+const selectedRegions =
+  currentConfig.regions;
+
+
+const centers =
+  currentConfig.centers;
+
 
 // 지역별 유입 통근·통학 인구
 let inflowByRegion = {};
+
+// ============================================================
+// 권역 선택 드롭다운
+// ============================================================
+
+const regionSelect =
+  document.getElementById(
+    "regionSelect"
+  );
+
+
+if (regionSelect) {
+
+  regionSelect.value =
+    currentRegionKey;
+
+
+  regionSelect.addEventListener(
+    "change",
+    event => {
+
+      const regionKey =
+        event.target.value;
+
+
+      window.location.search =
+        `?region=${regionKey}`;
+
+    }
+  );
+
+}
 
 // ============================================================
 // 5. 목적지로 부드럽게 휘어 들어가는 이동 경로
@@ -881,12 +1000,11 @@ fetch("./geo/korea_sido.geojson")
       }
     ).addTo(map);
 
-
     // --------------------------------------------------------
-    // 수도권 범위
+    // 현재 선택 권역 범위
     // --------------------------------------------------------
 
-    const capitalFeatures =
+    const selectedFeatures =
       geoData.features.filter(
         feature =>
           selectedRegions.includes(
@@ -895,19 +1013,21 @@ fetch("./geo/korea_sido.geojson")
       );
 
 
-    const capitalLayer =
+    const selectedLayer =
       L.geoJSON(
-        capitalFeatures
+        selectedFeatures
       );
 
 
     map.fitBounds(
-      capitalLayer.getBounds(),
+      selectedLayer.getBounds(),
       {
-        padding: [30, 30]
+        padding: [
+          30,
+          30
+        ]
       }
     );
-
 
     // --------------------------------------------------------
     // OD 데이터 불러오기
@@ -933,14 +1053,14 @@ fetch("./geo/korea_sido.geojson")
 
 function loadCommuteFlows() {
 
-  fetch("./data/capital_2020.json")
+  fetch(currentConfig.dataFile)
 
     .then(response => {
 
       if (!response.ok) {
 
         throw new Error(
-          "capital_2020.json을 불러오지 못했습니다."
+          `${currentConfig.dataFile}을 불러오지 못했습니다.`
         );
 
       }
