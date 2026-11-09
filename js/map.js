@@ -133,6 +133,125 @@ const centers =
 let inflowByRegion = {};
 // 유출
 let outflowByRegion = {};
+// 모든 지원 지역의 호버용 권역 내 통계
+let regionStatsByName = {};
+
+// ============================================================
+// 모든 권역의 호버용 유입·유출 통계 불러오기
+// ============================================================
+
+async function loadAllRegionStats() {
+
+  regionStatsByName = {};
+
+
+  const configs =
+    Object.values(regionConfigs);
+
+
+  await Promise.all(
+    configs.map(
+      async config => {
+
+        const response =
+          await fetch(config.dataFile);
+
+
+        if (!response.ok) {
+
+          throw new Error(
+            `${config.dataFile}을 불러오지 못했습니다.`
+          );
+
+        }
+
+
+        const data =
+          await response.json();
+
+
+        const regionSet =
+          new Set(config.regions);
+
+
+        const flows =
+          data.filter(
+            d =>
+
+              d.ITM_ID === "T1" &&
+
+              d.C1_NM !== "계" &&
+              d.C2_NM !== "계" &&
+
+              d.C1_NM !== "기타" &&
+              d.C2_NM !== "기타" &&
+
+              d.C1_NM !== d.C2_NM &&
+
+              regionSet.has(d.C1_NM) &&
+              regionSet.has(d.C2_NM)
+          );
+
+
+        // 해당 권역 지역 초기화
+        config.regions.forEach(
+          regionName => {
+
+            regionStatsByName[regionName] = {
+              inflow: 0,
+              outflow: 0
+            };
+
+          }
+        );
+
+
+        flows.forEach(
+          flow => {
+
+            const origin =
+              flow.C1_NM;
+
+            const destination =
+              flow.C2_NM;
+
+            const value =
+              Number(flow.DT);
+
+
+            regionStatsByName[
+              destination
+            ].inflow += value;
+
+
+            regionStatsByName[
+              origin
+            ].outflow += value;
+
+          }
+        );
+
+      }
+    )
+  );
+
+
+  console.log(
+    "전체 권역 호버 통계:",
+    regionStatsByName
+  );
+
+}
+
+loadAllRegionStats()
+  .catch(error => {
+
+    console.error(
+      "전체 권역 통계 로딩 오류:",
+      error
+    );
+
+  });
 
 // ============================================================
 // 권역 선택 드롭다운
@@ -909,14 +1028,13 @@ fetch("./geo/korea_sido.geojson")
       layer.bindTooltip(
         () => {
 
-          const inflow = inflowByRegion[name] || 0;
-          const outflow = outflowByRegion[name] || 0;
+          const stats = regionStatsByName[name];
 
-          if (selectedRegions.includes(name)) {
+          if (stats) {
 
             return `
               <div class="region-tooltip-name">
-                ${name} 통근·통학 인구
+                ${name} 권역 내 통근·통학 인구
               </div>
 
               <div class="region-tooltip-label">
@@ -924,7 +1042,7 @@ fetch("./geo/korea_sido.geojson")
               </div>
 
               <div class="region-tooltip-value">
-                ${inflow.toLocaleString()}명
+                ${stats.inflow.toLocaleString()}명
               </div>
 
               <div class="region-tooltip-label">
@@ -932,11 +1050,12 @@ fetch("./geo/korea_sido.geojson")
               </div>
 
               <div class="region-tooltip-value">
-                ${outflow.toLocaleString()}명
+                ${stats.outflow.toLocaleString()}명
               </div>
             `;
 
           }
+
 
           return name;
 
