@@ -47,6 +47,22 @@ const configs = [
 
     outputFile:
       "busan_ulsan_gyeongnam_2020.json"
+  },
+
+  // 대구·경북
+  {
+    name: "대구·경북",
+
+    tblId: "DT_1PA2007",
+
+    objL1:
+      "00+22+37+",
+
+    objL2:
+      "00+22+37+90+99+",
+
+    outputFile:
+      "daegu_gyeongbuk_2020.json"
   }
 
 ];
