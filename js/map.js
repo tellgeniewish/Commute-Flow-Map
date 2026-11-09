@@ -134,6 +134,8 @@ const centers =
 
 // 지역별 유입 통근·통학 인구
 let inflowByRegion = {};
+// 유출
+let outflowByRegion = {};
 
 // ============================================================
 // 권역 선택 드롭다운
@@ -910,23 +912,30 @@ fetch("./geo/korea_sido.geojson")
       layer.bindTooltip(
         () => {
 
-          const inflow =
-            inflowByRegion[name] || 0;
-
+          const inflow = inflowByRegion[name] || 0;
+          const outflow = outflowByRegion[name] || 0;
 
           if (selectedRegions.includes(name)) {
 
             return `
               <div class="region-tooltip-name">
-                ${name}
+                ${name} 통근·통학 인구
               </div>
 
               <div class="region-tooltip-label">
-                유입 통근·통학 인구
+                유입
               </div>
 
               <div class="region-tooltip-value">
                 ${inflow.toLocaleString()}명
+              </div>
+
+              <div class="region-tooltip-label">
+                유출
+              </div>
+
+              <div class="region-tooltip-value">
+                ${outflow.toLocaleString()}명
               </div>
             `;
 
@@ -1105,14 +1114,20 @@ function loadCommuteFlows() {
         );
 
         // ------------------------------------------------------
-        // 지역별 유입 통근·통학 인구 계산
+        // 지역별 유입·유출 통근·통학 인구 계산
+        //
+        // C1_NM = 출발지
         // C2_NM = 도착지
         // ------------------------------------------------------
 
         inflowByRegion = {};
+        outflowByRegion = {};
 
 
         flows.forEach(flow => {
+
+          const origin =
+            flow.C1_NM;
 
           const destination =
             flow.C2_NM;
@@ -1121,14 +1136,24 @@ function loadCommuteFlows() {
             Number(flow.DT);
 
 
+          // 유입
           if (!inflowByRegion[destination]) {
 
             inflowByRegion[destination] = 0;
 
           }
 
-
           inflowByRegion[destination] += value;
+
+
+          // 유출
+          if (!outflowByRegion[origin]) {
+
+            outflowByRegion[origin] = 0;
+
+          }
+
+          outflowByRegion[origin] += value;
 
         });
 
@@ -1136,6 +1161,12 @@ function loadCommuteFlows() {
         console.log(
           "지역별 유입인구:",
           inflowByRegion
+        );
+
+
+        console.log(
+          "지역별 유출인구:",
+          outflowByRegion
         );
 
 
