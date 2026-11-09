@@ -73,6 +73,25 @@ const regionConfigs = {
     dataFile:
       "./data/busan_ulsan_gyeongnam_2020.json"
 
+  },
+
+  daegu_gyeongbuk: {
+
+    label:
+      "대구·경북",
+
+    regions: [
+      "대구광역시", "경상북도"
+    ],
+
+    centers: {
+      "대구광역시": [35.8714, 128.6014],
+      "경상북도": [36.5760, 128.5056]
+    },
+
+    dataFile:
+      "./data/daegu_gyeongbuk_2020.json"
+
   }
 
 };
@@ -963,6 +982,18 @@ fetch("./geo/korea_sido.geojson")
 
             window.location.search =
               "?region=southeast";
+
+          }
+
+          if (
+            [
+              "대구광역시",
+              "경상북도"
+            ].includes(name)
+          ) {
+
+            window.location.search =
+              "?region=daegu_gyeongbuk";
 
           }
 
