@@ -1247,36 +1247,36 @@ function loadCommuteFlows() {
       // 지역 대표점
       // ------------------------------------------------------
 
-      Object.entries(
-        centers
-      ).forEach(
-        ([name, coords]) => {
+      // Object.entries(
+      //   centers
+      // ).forEach(
+      //   ([name, coords]) => {
 
-          L.circleMarker(
-            coords,
-            {
-              radius: 5,
+      //     L.circleMarker(
+      //       coords,
+      //       {
+      //         radius: 5,
 
-              color: "#35657f",
+      //         color: "#35657f",
 
-              fillColor: "#ffffff",
-              fillOpacity: 1,
+      //         fillColor: "#ffffff",
+      //         fillOpacity: 1,
 
-              weight: 2
-            }
-          )
+      //         weight: 2
+      //       }
+      //     )
 
-            .addTo(map)
+      //       .addTo(map)
 
-            .bindTooltip(
-              name,
-              {
-                direction: "top"
-              }
-            );
+      //       .bindTooltip(
+      //         name,
+      //         {
+      //           direction: "top"
+      //         }
+      //       );
 
-        }
-      );
+      //   }
+      // );
 
     })
 
