@@ -79,6 +79,22 @@ const configs = [
 
     outputFile:
       "gwangju_jeonnam_2020.json"
+  },
+
+  // 대전·세종·충북·충남
+  {
+    name: "대전·세종·충북·충남",
+
+    tblId: "DT_1PA2009",
+
+    objL1:
+      "00+25+29+33+34+",
+
+    objL2:
+      "00+25+29+33+34+90+99+",
+
+    outputFile:
+      "daejeon_sejong_chungcheong_2020.json"
   }
 
 ];
