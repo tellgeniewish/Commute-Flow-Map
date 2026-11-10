@@ -95,6 +95,22 @@ const configs = [
 
     outputFile:
       "daejeon_sejong_chungcheong_2020.json"
+  },
+  
+  // 강원
+  {
+    name: "강원",
+
+    tblId: "DT_1PA2010",
+
+    objL1:
+      "00+32+",
+
+    objL2:
+      "00+32+90+99+",
+
+    outputFile:
+      "gangwon_2020.json"
   }
 
 ];

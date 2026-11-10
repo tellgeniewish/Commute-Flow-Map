@@ -31,14 +31,10 @@ L.tileLayer(
 const regionConfigs = {
 
   capital: {
-
-    label:
-      "서울·인천·경기",
-
+    label: "서울·인천·경기",
     regions: [
       "서울특별시", "인천광역시", "경기도"
     ],
-
     centers: {
       "서울특별시": [37.5665, 126.9780],
 
@@ -46,22 +42,15 @@ const regionConfigs = {
 
       "경기도": [37.2750, 127.0095]
     },
-
     dataFile:
       "./data/capital_2020.json"
-
   },
 
-
   southeast: {
-
-    label:
-      "부산·울산·경남",
-
+    label: "부산·울산·경남",
     regions: [
       "부산광역시", "울산광역시", "경상남도"
     ],
-
     centers: {
       "부산광역시": [35.1796, 129.0756],
 
@@ -69,49 +58,35 @@ const regionConfigs = {
 
       "경상남도": [35.2383, 128.6924]
     },
-
     dataFile:
       "./data/busan_ulsan_gyeongnam_2020.json"
-
   },
 
   daegu_gyeongbuk: {
-
-    label:
-      "대구·경북",
-
+    label: "대구·경북",
     regions: [
       "대구광역시", "경상북도"
     ],
-
     centers: {
       "대구광역시": [35.8714, 128.6014],
       "경상북도": [36.5760, 128.5056]
     },
-
     dataFile:
       "./data/daegu_gyeongbuk_2020.json"
-
   },
 
   gwangju_jeonnam: {
-
-    label:
-      "광주·전남",
-
+    label: "광주·전남",
     regions: [
       "광주광역시",
       "전라남도"
     ],
-
     centers: {
       "광주광역시": [35.1595, 126.8526],
       "전라남도": [34.8679, 126.9910]
     },
-
     dataFile:
       "./data/gwangju_jeonnam_2020.json"
-
   },
 
   chungcheong: {
@@ -129,6 +104,18 @@ const regionConfigs = {
       "충청남도": [36.6588, 126.6728]
     },
     dataFile: "./data/daejeon_sejong_chungcheong_2020.json"
+  },
+
+  gangwon: {
+    label: "강원",
+    regions: [
+      "강원도"
+    ],
+    centers: {
+      "강원도": [37.8228, 128.1555]
+    },
+    dataFile:
+      "./data/gangwon_2020.json"
   }
 
 };
