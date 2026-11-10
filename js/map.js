@@ -92,6 +92,26 @@ const regionConfigs = {
     dataFile:
       "./data/daegu_gyeongbuk_2020.json"
 
+  },
+
+  gwangju_jeonnam: {
+
+    label:
+      "광주·전남",
+
+    regions: [
+      "광주광역시",
+      "전라남도"
+    ],
+
+    centers: {
+      "광주광역시": [35.1595, 126.8526],
+      "전라남도": [34.8679, 126.9910]
+    },
+
+    dataFile:
+      "./data/gwangju_jeonnam_2020.json"
+
   }
 
 };
@@ -1113,6 +1133,18 @@ fetch("./geo/korea_sido.geojson")
 
             window.location.search =
               "?region=daegu_gyeongbuk";
+
+          }
+
+          if (
+            [
+              "광주광역시",
+              "전라남도"
+            ].includes(name)
+          ) {
+
+            window.location.search =
+              "?region=gwangju_jeonnam";
 
           }
 
