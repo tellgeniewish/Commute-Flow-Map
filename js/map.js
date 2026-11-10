@@ -112,6 +112,23 @@ const regionConfigs = {
     dataFile:
       "./data/gwangju_jeonnam_2020.json"
 
+  },
+
+  chungcheong: {
+    label: "대전·세종·충북·충남",
+    regions: [
+      "대전광역시",
+      "세종특별자치시",
+      "충청북도",
+      "충청남도"
+    ],
+    centers: {
+      "대전광역시": [36.3504, 127.3845],
+      "세종특별자치시": [36.4800, 127.2890],
+      "충청북도": [36.6357, 127.4917],
+      "충청남도": [36.6588, 126.6728]
+    },
+    dataFile: "./data/daejeon_sejong_chungcheong_2020.json"
   }
 
 };
@@ -1092,64 +1109,31 @@ fetch("./geo/korea_sido.geojson")
       // 권역 클릭 전환
       // ==========================================================
 
-      layer.on(
-        "click",
-        function () {
+      layer.on("click", function () {
+        let targetKey = null;
 
-          if (
-            [
-              "서울특별시",
-              "인천광역시",
-              "경기도"
-            ].includes(name)
-          ) {
-
-            window.location.search =
-              "?region=capital";
-
-            return;
-          }
-
-
-          if (
-            [
-              "부산광역시",
-              "울산광역시",
-              "경상남도"
-            ].includes(name)
-          ) {
-
-            window.location.search =
-              "?region=southeast";
-
-          }
-
-          if (
-            [
-              "대구광역시",
-              "경상북도"
-            ].includes(name)
-          ) {
-
-            window.location.search =
-              "?region=daegu_gyeongbuk";
-
-          }
-
-          if (
-            [
-              "광주광역시",
-              "전라남도"
-            ].includes(name)
-          ) {
-
-            window.location.search =
-              "?region=gwangju_jeonnam";
-
-          }
-
+        if (
+          ["서울특별시", "인천광역시", "경기도"].includes(name)
+        ) {
+          targetKey = "capital";
+        } else if (
+          ["부산광역시", "울산광역시", "경상남도"].includes(name)
+        ) {
+          targetKey = "southeast";
+        } else if (
+          ["대구광역시", "경상북도"].includes(name)
+        ) {
+          targetKey = "daegu_gyeongbuk";
+        } else if (
+          ["대전광역시", "세종특별자치시", "충청북도", "충청남도"].includes(name)
+        ) {
+          targetKey = "chungcheong";
         }
-      );
+
+        if (targetKey && targetKey !== currentRegionKey) {
+          window.location.search = `?region=${targetKey}`;
+        }
+      });
 
       layer.on(
         "mouseover",
