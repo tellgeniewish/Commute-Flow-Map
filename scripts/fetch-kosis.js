@@ -63,6 +63,22 @@ const configs = [
 
     outputFile:
       "daegu_gyeongbuk_2020.json"
+  },
+
+  // 광주·전남
+  {
+    name: "광주·전남",
+
+    tblId: "DT_1PA2008",
+
+    objL1:
+      "ALL",
+
+    objL2:
+      "00+24+36+90+",
+
+    outputFile:
+      "gwangju_jeonnam_2020.json"
   }
 
 ];
