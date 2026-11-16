@@ -14,7 +14,7 @@ L.tileLayer(
   "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
   {
     maxZoom: 18,
-    opacity: 0.35,
+    opacity: 0.29,
     attribution: "&copy; OpenStreetMap contributors"
   }
 ).addTo(map);
@@ -95,7 +95,7 @@ const regionConfigs = {
     label: "전북",
     regions: ["전라북도"],
     centers: {
-      "전북특별자치도": [35.7175, 127.1530]
+      "전라북도": [35.7175, 127.1530]
     },
     dataFile: "./data/jeonbuk_2020.json"
   },
@@ -197,13 +197,25 @@ async function loadAllRegionStats() {
           return;
         }
 
+        // 원자료에 별도의 '기타' 행이 있는 경우에만 해당 값 사용.
+        const otherRow = data.find(d =>
+          d.ITM_ID === "T1" &&
+          String(d.C1) === code &&
+          String(d.C2) === "90"
+        );
+        const other = otherRow && Number.isFinite(Number(otherRow.DT))
+          ? Number(otherRow.DT)
+          : null;
         const outside = total - within;
+        const regionName = config.regions[0];
 
-        regionStatsByName[config.regions[0]] = {
+        regionStatsByName[regionName] = {
           type: "summary",
           total,
           within,
           outside,
+          other,
+          otherVerified: other !== null && other === outside,
           withinPercent: (within / total) * 100,
           outsidePercent: (outside / total) * 100
         };
@@ -241,11 +253,99 @@ async function loadAllRegionStats() {
   );
 
   console.log("전체 권역 호버 통계:", regionStatsByName);
+  renderRegionOverview();
 }
 
 loadAllRegionStats().catch(error => {
   console.error("전체 권역 통계 로딩 오류:", error);
 });
+
+// 일반 권역: 실제로 지도에 그리는 시·도 간 OD 데이터만 사용합니다.
+function renderFlowOverview(flows) {
+  const panel = document.getElementById("regionOverview");
+  if (!panel) return;
+  panel.hidden = false;
+  const fmt = value => Math.round(value).toLocaleString("ko-KR") + "명";
+  const total = flows.reduce((sum, flow) => sum + Number(flow.DT), 0);
+  const topFlows = flows.slice(0, 3);
+  const topValue = topFlows.length ? Number(topFlows[0].DT) : 0;
+  const regionRows = currentConfig.regions.map(name => {
+    const inbound = inflowByRegion[name] || 0;
+    const outbound = outflowByRegion[name] || 0;
+    return { name, inbound, outbound, net: inbound - outbound };
+  });
+  const maxRegionFlow = Math.max(1, ...regionRows.flatMap(row => [row.inbound, row.outbound]));
+  panel.innerHTML = `
+    <div class="overview-eyebrow">MOBILITY INSIGHTS · 2020</div>
+    <div class="overview-heading">${currentConfig.label} 이동 분석</div>
+    <div class="overview-subtitle">12세 이상 · 권역 내 서로 다른 시·도 간 이동</div>
+    <div class="stat-grid">
+      <div class="stat-block"><span>총 OD 이동량</span><strong>${fmt(total)}</strong></div>
+      <div class="stat-block"><span>분석 이동 경로</span><strong>${flows.length.toLocaleString("ko-KR")}개</strong></div>
+    </div>
+    <div class="insights-section">
+      <div class="insights-section-title">이동량 TOP 3</div>
+      ${topFlows.length ? topFlows.map((flow, i) => `
+        <div class="top-flow-item">
+          <div class="top-flow-head"><span><b>${i + 1}위</b> ${flow.C1_NM} → ${flow.C2_NM}</span><strong>${fmt(Number(flow.DT))}</strong></div>
+          <div class="top-flow-track"><span style="width:${topValue ? Number(flow.DT) / topValue * 100 : 0}%; background:${getFlowStyle(i, flows.length).color}"></span></div>
+        </div>
+      `).join("") : '<p class="overview-loading">표시할 이동 경로가 없습니다.</p>'}
+    </div>
+    <div class="insights-section">
+      <div class="insights-section-title">지역별 유입·유출 비교</div>
+      <div class="flow-comparison-key"><span><i class="comparison-dot inbound"></i>유입</span><span><i class="comparison-dot outbound"></i>유출</span></div>
+      ${regionRows.map(row => `
+        <div class="region-flow-row">
+          <div class="region-flow-label"><strong>${row.name}</strong><span>순유입 ${row.net > 0 ? "+" : ""}${fmt(row.net)}</span></div>
+          <div class="region-flow-bars">
+            <div class="region-flow-bar"><span>유입</span><div><i class="inbound" style="width:${row.inbound / maxRegionFlow * 100}%"></i></div><b>${fmt(row.inbound)}</b></div>
+            <div class="region-flow-bar"><span>유출</span><div><i class="outbound" style="width:${row.outbound / maxRegionFlow * 100}%"></i></div><b>${fmt(row.outbound)}</b></div>
+          </div>
+        </div>
+      `).join("")}
+    </div>
+    <div class="overview-note">지도에 표시된 권역 내 시·도 간 이동만 집계한 값입니다. 동일 시·도 내부 이동과 다른 권역으로의 이동은 포함하지 않습니다.<br>순유입 = 권역 내 유입 − 권역 내 유출 (거주지 이동 통계가 아님)</div>
+  `;
+}
+
+// 단일 시·도 권역: 별도 In/Out 수치를 만들지 않고 원자료 집계를 표시합니다.
+function renderRegionOverview() {
+  const panel = document.getElementById("regionOverview");
+  if (!panel) return;
+  const isSingle = ["gangwon", "jeonbuk", "jeju"].includes(currentRegionKey);
+  if (!isSingle) {
+    panel.hidden = false;
+    panel.innerHTML = `<div class="overview-eyebrow">MOBILITY INSIGHTS · 2020</div><div class="overview-heading">${currentConfig.label} 이동 분석</div><p class="overview-loading">권역 내 OD 통계를 불러오는 중입니다.</p>`;
+    return;
+  }
+  const stats = regionStatsByName[currentConfig.regions[0]];
+  panel.hidden = false;
+  if (!stats || stats.type !== "summary") {
+    panel.innerHTML = `<p class="overview-loading">통계 자료를 확인할 수 없습니다.</p>`;
+    return;
+  }
+  const format = value => value.toLocaleString("ko-KR") + "명";
+  const otherText = stats.otherVerified ? format(stats.other) : "별도 집계 없음";
+  const otherNote = stats.otherVerified
+    ? `전체와 관내의 차이 ${format(stats.outside)}`
+    : `전체와 관내 집계의 차이 0명 · 기타 이동 여부 판단 불가`;
+  panel.innerHTML = `
+    <div class="overview-eyebrow">REGIONAL PROFILE · 2020</div>
+    <div class="overview-heading">${currentConfig.label} 통근·통학 현황</div>
+    <div class="overview-subtitle">12세 이상 · 현 거주지 기준</div>
+    <div class="stat-grid">
+      <div class="stat-block"><span>전체 통근·통학</span><strong>${format(stats.total)}</strong></div>
+      <div class="stat-block"><span>관내 통근·통학</span><strong>${format(stats.within)}</strong></div>
+    </div>
+    <div class="ratio-label"><span>관내 비중</span><strong>${stats.withinPercent.toFixed(2)}%</strong></div>
+    <div class="ratio-track" role="img" aria-label="관내 통근·통학 ${stats.withinPercent.toFixed(2)}퍼센트">
+      <span class="ratio-within" style="width:${stats.withinPercent.toFixed(2)}%"></span>
+    </div>
+    <div class="ratio-key"><span><i class="key-dot within"></i>관내 ${format(stats.within)}</span><span><i class="key-dot other"></i>기타 ${otherText}</span></div>
+    <div class="overview-note">${otherNote}<br>정확한 외부 유입·유출 OD 자료는 제공되지 않습니다.</div>
+  `;
+}
 
 
 // ============================================================
@@ -323,379 +423,126 @@ function createCurvePoints(
 // ============================================================
 
 function getAnimationDuration(value) {
-  if (value >= 1000000) return 4200;
-  if (value >= 500000) return 4800;
-  if (value >= 150000) return 5400;
-  return 6200;
+  // 대략 일정한 이동 템포, 큰 이동량도 과도하게 빨라지지 않음
+  if (value >= 1000000) return 6500;
+  if (value >= 500000) return 6800;
+  if (value >= 150000) return 7100;
+  return 7400;
 }
 
 
 // ============================================================
-// 8. 부드러운 화살표 애니메이션 - 공유 Canvas
-//
-// 변경 핵심:
-// 1) 모든 OD가 하나의 Canvas를 공유
-// 2) requestAnimationFrame 하나로 통합
-// 3) 소수점 좌표까지 연속 보간
-// 4) 곡선의 접선 방향에 맞게 화살촉 회전
-// 5) 시작/종료 구간에서 자연스럽게 페이드
+// 8. Data Stream - 얇은 곡선과 이동 파티클 (공유 Canvas)
+// 실제 출발지/도착지의 곡선만 사용하며, 가상 이동 경로를 만들지 않습니다.
 // ============================================================
 
 const flowAnimations = [];
-
-const flowCanvas = L.DomUtil.create(
-  "canvas",
-  "flow-canvas"
-);
-
-flowCanvas.style.position = "absolute";
-flowCanvas.style.left = "0";
-flowCanvas.style.top = "0";
-flowCanvas.style.zIndex = "450";
-flowCanvas.style.pointerEvents = "none";
-
+const flowCanvas = L.DomUtil.create("canvas", "flow-canvas");
+Object.assign(flowCanvas.style, {
+  position: "absolute", left: "0", top: "0", zIndex: "450",
+  pointerEvents: "none"
+});
 map.getContainer().appendChild(flowCanvas);
-
 const flowContext = flowCanvas.getContext("2d");
-
 let flowPixelRatio = 1;
 let flowAnimationStarted = false;
-
-
-// ------------------------------------------------------------
-// Canvas 크기 설정
-// ------------------------------------------------------------
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function resizeFlowCanvas() {
   const size = map.getSize();
-
-  flowPixelRatio = Math.min(
-    window.devicePixelRatio || 1,
-    2
-  );
-
+  flowPixelRatio = Math.min(window.devicePixelRatio || 1, 2);
   flowCanvas.width = Math.round(size.x * flowPixelRatio);
   flowCanvas.height = Math.round(size.y * flowPixelRatio);
-
   flowCanvas.style.width = `${size.x}px`;
   flowCanvas.style.height = `${size.y}px`;
-
-  flowContext.setTransform(
-    flowPixelRatio,
-    0,
-    0,
-    flowPixelRatio,
-    0,
-    0
-  );
+  flowContext.setTransform(flowPixelRatio, 0, 0, flowPixelRatio, 0, 0);
 }
-
 resizeFlowCanvas();
 map.on("resize", resizeFlowCanvas);
 
-
-// ------------------------------------------------------------
-// 이동 경로 등록
-// ------------------------------------------------------------
-
-function animateFlowArrow(
-  points,
-  duration,
-  style,
-  delay = 0
-) {
-  flowAnimations.push({
-    points,
-    duration,
-    style,
-    delay
-  });
-
+function animateFlowArrow(points, duration, style, delay = 0) {
+  flowAnimations.push({ points, duration, style, delay });
   if (!flowAnimationStarted) {
     flowAnimationStarted = true;
     requestAnimationFrame(renderFlowAnimations);
   }
 }
 
-
-// ------------------------------------------------------------
-// 이동 경로의 점 사이를 연속 보간
-// ------------------------------------------------------------
-
-function interpolateFlowPoint(points, index) {
-  const boundedIndex = Math.max(
-    0,
-    Math.min(points.length - 1, index)
-  );
-
-  const i = Math.floor(boundedIndex);
+function sampleFlowPoint(points, progress) {
+  const index = Math.max(0, Math.min(1, progress)) * (points.length - 1);
+  const i = Math.floor(index);
   const next = Math.min(i + 1, points.length - 1);
-  const fraction = boundedIndex - i;
-
+  const t = index - i;
   return {
-    x:
-      points[i].x +
-      (points[next].x - points[i].x) * fraction,
-
-    y:
-      points[i].y +
-      (points[next].y - points[i].y) * fraction
+    x: points[i].x + (points[next].x - points[i].x) * t,
+    y: points[i].y + (points[next].y - points[i].y) * t
   };
 }
 
-
-// ------------------------------------------------------------
-// 유선형 화살표 그리기
-// ------------------------------------------------------------
-
-function drawMovingFlowArrow(
-  projectedPoints,
-  progress,
-  style
-) {
-  const last = projectedPoints.length - 1;
-
-  if (last < 2) return;
-
-  const headIndex = progress * last;
-  const tailIndex = Math.max(
-    0,
-    headIndex - last * 0.28
-  );
-
-  const trailLength = headIndex - tailIndex;
-
-  if (trailLength < 1.5) return;
-
-  // 시작과 끝에서 투명도 조절
-  const fadeIn = Math.min(1, progress / 0.10);
-  const fadeOut = Math.min(1, (1 - progress) / 0.10);
-
-  const opacity = Math.max(
-    0,
-    Math.min(fadeIn, fadeOut)
-  );
-
-  if (opacity <= 0) return;
-
-  const leftSide = [];
-  const rightSide = [];
-
-  const sampleCount = Math.max(
-    8,
-    Math.ceil(trailLength)
-  );
-
-  for (let i = 0; i <= sampleCount; i++) {
-    const fraction = i / sampleCount;
-
-    const index =
-      tailIndex + trailLength * fraction;
-
-    const p = interpolateFlowPoint(
-      projectedPoints,
-      index
-    );
-
-    const before = interpolateFlowPoint(
-      projectedPoints,
-      Math.max(0, index - 0.35)
-    );
-
-    const after = interpolateFlowPoint(
-      projectedPoints,
-      Math.min(last, index + 0.35)
-    );
-
-    const dx = after.x - before.x;
-    const dy = after.y - before.y;
-    const length = Math.hypot(dx, dy) || 1;
-
-    const nx = -dy / length;
-    const ny = dx / length;
-
-    // 꼬리에서 머리로 갈수록 폭이 증가
-    const halfWidth =
-      0.20 +
-      style.lineWeight *
-      0.46 *
-      Math.pow(fraction, 1.4);
-
-    leftSide.push({
-      x: p.x + nx * halfWidth,
-      y: p.y + ny * halfWidth
-    });
-
-    rightSide.push({
-      x: p.x - nx * halfWidth,
-      y: p.y - ny * halfWidth
-    });
-  }
-
-  const head = interpolateFlowPoint(
-    projectedPoints,
-    headIndex
-  );
-
-  const previous = interpolateFlowPoint(
-    projectedPoints,
-    Math.max(0, headIndex - 0.8)
-  );
-
-  const next = interpolateFlowPoint(
-    projectedPoints,
-    Math.min(last, headIndex + 0.8)
-  );
-
-  const dx = next.x - previous.x;
-  const dy = next.y - previous.y;
-
-  const directionLength = Math.hypot(dx, dy) || 1;
-
-  const ux = dx / directionLength;
-  const uy = dy / directionLength;
-
-  const nx = -uy;
-  const ny = ux;
-
-  // 곡선 접선 방향의 화살촉
-  const arrowLength = style.arrowSize * 0.85;
-  const arrowHalfWidth = style.arrowSize * 0.38;
-
-  const tip = {
-    x: head.x + ux * arrowLength,
-    y: head.y + uy * arrowLength
-  };
-
-  const headLeft = {
-    x: head.x + nx * arrowHalfWidth,
-    y: head.y + ny * arrowHalfWidth
-  };
-
-  const headRight = {
-    x: head.x - nx * arrowHalfWidth,
-    y: head.y - ny * arrowHalfWidth
-  };
-
+function drawFlowPath(points, style) {
   const ctx = flowContext;
-
+  const last = points.length - 1;
+  if (!last) return;
   ctx.save();
-  ctx.globalAlpha = opacity;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = style.lineWeight;
+  ctx.strokeStyle = style.color;
+  ctx.globalAlpha = style.opacity;
   ctx.beginPath();
-
-  ctx.moveTo(
-    leftSide[0].x,
-    leftSide[0].y
-  );
-
-  for (let i = 1; i < leftSide.length; i++) {
-    ctx.lineTo(
-      leftSide[i].x,
-      leftSide[i].y
-    );
-  }
-
-  ctx.lineTo(headLeft.x, headLeft.y);
-  ctx.lineTo(tip.x, tip.y);
-  ctx.lineTo(headRight.x, headRight.y);
-
-  for (let i = rightSide.length - 1; i >= 0; i--) {
-    ctx.lineTo(
-      rightSide[i].x,
-      rightSide[i].y
-    );
-  }
-
-  ctx.closePath();
-
-  // 꼬리는 투명하고 머리 부분은 선명하게
-  const tail = interpolateFlowPoint(
-    projectedPoints,
-    tailIndex
-  );
-
-  const gradient = ctx.createLinearGradient(
-    tail.x,
-    tail.y,
-    tip.x,
-    tip.y
-  );
-
-  gradient.addColorStop(
-    0,
-    hexToRgba(style.color, 0.00)
-  );
-
-  gradient.addColorStop(
-    0.45,
-    hexToRgba(style.color, 0.28)
-  );
-
-  gradient.addColorStop(
-    1,
-    hexToRgba(style.color, 0.80)
-  );
-
-  ctx.fillStyle = gradient;
-  ctx.fill();
+  points.forEach((point, i) => {
+    if (i === 0) ctx.moveTo(point.x, point.y);
+    else ctx.lineTo(point.x, point.y);
+  });
+  ctx.stroke();
   ctx.restore();
 }
 
-
-// ------------------------------------------------------------
-// 모든 화살표를 하나의 루프에서 렌더링
-// ------------------------------------------------------------
+function drawFlowParticles(points, progress, style) {
+  const ctx = flowContext;
+  for (let i = 0; i < style.particleCount; i++) {
+    const t = (progress + i / style.particleCount) % 1;
+    const point = sampleFlowPoint(points, t);
+    // 도착 지점은 부드럽게 사라지며 출발점에서 다시 나타납니다.
+    const fadeIn = Math.min(1, t / 0.10);
+    const fadeOut = Math.min(1, (1 - t) / 0.14);
+    const alpha = Math.max(0, Math.min(fadeIn, fadeOut));
+    if (alpha <= 0) continue;
+    ctx.save();
+    ctx.globalAlpha = alpha * (0.58 + style.opacity * 0.35);
+    ctx.fillStyle = style.color;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, style.particleSize, 0, Math.PI * 2);
+    ctx.fill();
+    // 파티클 바로 뒤의 작은 잔상은 진행 방향을 알려줍니다.
+    const prev = sampleFlowPoint(points, Math.max(0, t - 0.012));
+    ctx.globalAlpha = alpha * 0.18;
+    ctx.lineWidth = Math.max(1, style.lineWeight);
+    ctx.strokeStyle = style.color;
+    ctx.beginPath();
+    ctx.moveTo(prev.x, prev.y);
+    ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
 
 function renderFlowAnimations(timestamp) {
-  flowContext.clearRect(
-    0,
-    0,
-    flowCanvas.width / flowPixelRatio,
-    flowCanvas.height / flowPixelRatio
-  );
-
+  const ctx = flowContext;
+  ctx.clearRect(0, 0, flowCanvas.width / flowPixelRatio,
+    flowCanvas.height / flowPixelRatio);
+  // 지도 이동/확대 시에도 Canvas 좌표를 Leaflet 컨테이너와 동기화합니다.
   for (const flow of flowAnimations) {
-    const projectedPoints = flow.points.map(
-      p => map.latLngToContainerPoint(p)
-    );
-
-    // 동일 경로에 시간차를 둔 화살표 2개
-    for (let copy = 0; copy < 2; copy++) {
-      const offset =
-        timestamp +
-        flow.delay +
-        copy * flow.duration / 2;
-
-      const progress =
-        (((offset % flow.duration) + flow.duration)
-          % flow.duration) / flow.duration;
-
-      drawMovingFlowArrow(
-        projectedPoints,
-        progress,
-        flow.style
-      );
+    const projected = flow.points.map(p => map.latLngToContainerPoint(p));
+    drawFlowPath(projected, flow.style);
+    if (!reduceMotion) {
+      const progress = ((timestamp + flow.delay) % flow.duration) / flow.duration;
+      drawFlowParticles(projected, progress, flow.style);
     }
   }
-
-  requestAnimationFrame(renderFlowAnimations);
+  if (!reduceMotion) requestAnimationFrame(renderFlowAnimations);
+  else flowAnimationStarted = false;
 }
-
-
-// ------------------------------------------------------------
-// HEX 색상 → RGBA
-// ------------------------------------------------------------
-
-function hexToRgba(hex, alpha) {
-  const value = hex.replace("#", "");
-
-  const r = parseInt(value.substring(0, 2), 16);
-  const g = parseInt(value.substring(2, 4), 16);
-  const b = parseInt(value.substring(4, 6), 16);
-
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
 
 // ============================================================
 // 9. GeoJSON 불러오기
@@ -723,10 +570,10 @@ fetch("./geo/korea_sido.geojson")
       const selected = selectedRegions.includes(name);
 
       return {
-        color: selected ? "#8fb8bd" : "#cfcfcf",
-        weight: selected ? 1.6 : 1,
-        fillColor: selected ? "#c8eee6" : "#eeeeee",
-        fillOpacity: 0.55
+        color: selected ? "#009EA8" : "#CEDFE8",
+        weight: selected ? 1.7 : 0.9,
+        fillColor: selected ? "#C4F7EB" : "#F0F5FA",
+        fillOpacity: selected ? 0.46 : 0.30
       };
     }
 
@@ -741,62 +588,26 @@ fetch("./geo/korea_sido.geojson")
       layer.bindTooltip(
         () => {
           const stats = regionStatsByName[name];
-
-          
-        if (stats) {
-          // 강원: 전체 / 지역 내 / 기타 통근·통학 인구
+          if (!stats) return `<div class="region-tooltip-name">${name}</div>`;
           if (stats.type === "summary") {
+            const otherLine = stats.otherVerified
+              ? `${stats.other.toLocaleString()}명`
+              : "별도 집계 미확인";
             return `
-              <div class="region-tooltip-name">
-                ${name} 통근·통학 인구 (2020)
-              </div>
-
-              <div class="region-tooltip-label">
-                전체
-              </div>
-              <div class="region-tooltip-value">
-                ${stats.total.toLocaleString()}명
-              </div>
-
-              <div class="region-tooltip-label">
-                ${name} 내부
-              </div>
-              <div class="region-tooltip-value">
-                ${stats.within.toLocaleString()}명
-                (${stats.withinPercent.toFixed(2)}%)
-              </div>
-
-              <div class="region-tooltip-label">
-                기타 지역
-              </div>
-              <div class="region-tooltip-value">
-                ${stats.outside.toLocaleString()}명
-                (${stats.outsidePercent.toFixed(2)}%)
-              </div>
+              <div class="region-tooltip-name">${name}</div>
+              <div class="tooltip-subtitle">2020 · 12세 이상 통근·통학 인구</div>
+              <div class="tooltip-metric"><span>전체</span><strong>${stats.total.toLocaleString()}명</strong></div>
+              <div class="tooltip-metric"><span>관내</span><strong>${stats.within.toLocaleString()}명</strong></div>
+              <div class="tooltip-metric"><span>기타 통근·통학지</span><strong>${otherLine}</strong></div>
+              <div class="tooltip-note">관내 비중 ${stats.withinPercent.toFixed(2)}% · 구체적 OD 경로 미제공</div>
             `;
           }
-          // 기존 권역: 유입 / 유출
           return `
-            <div class="region-tooltip-name">
-              ${name} 권역 내 통근·통학 인구
-            </div>
-
-            <div class="region-tooltip-label">
-              유입
-            </div>
-            <div class="region-tooltip-value">
-              ${stats.inflow.toLocaleString()}명
-            </div>
-
-            <div class="region-tooltip-label">
-              유출
-            </div>
-            <div class="region-tooltip-value">
-              ${stats.outflow.toLocaleString()}명
-            </div>
+            <div class="region-tooltip-name">${name}</div>
+            <div class="tooltip-subtitle">권역 내 시·도 간 이동 · 2020</div>
+            <div class="tooltip-metric"><span>유입</span><strong>${stats.inflow.toLocaleString()}명</strong></div>
+            <div class="tooltip-metric"><span>유출</span><strong>${stats.outflow.toLocaleString()}명</strong></div>
           `;
-        }
-          return name;
         },
         {
           sticky: true,
@@ -805,7 +616,7 @@ fetch("./geo/korea_sido.geojson")
           className: "region-tooltip"
         }
       );
-      
+
       // 클릭한 지역이 속한 권역으로 자동 전환
       layer.on("click", function () {
 
@@ -824,9 +635,9 @@ fetch("./geo/korea_sido.geojson")
 
       layer.on("mouseover", function () {
         layer.setStyle({
-          fillColor: selected ? "#9fd8cc" : "#dddddd",
-          fillOpacity: selected ? 0.8 : 0.7,
-          color: selected ? "#557d68" : "#999999",
+          fillColor: selected ? "#3ED5B2" : "#E0FAF3",
+          fillOpacity: selected ? 0.64 : 0.48,
+          color: selected ? "#009EA8" : "#B7CDD8",
           weight: 2
         });
       });
@@ -852,15 +663,13 @@ fetch("./geo/korea_sido.geojson")
 
     const selectedLayer = L.geoJSON(selectedFeatures);
 
-    map.fitBounds(
-      selectedLayer.getBounds(),
-      {
-        padding: [90, 90],
-        maxZoom: 7,
-        animate: true,
-        duration: 0.45
-      }
-    );
+    if (selectedFeatures.length) {
+      map.fitBounds(selectedLayer.getBounds(), {
+        padding: [90, 90], maxZoom: 7, animate: true, duration: 0.45
+      });
+    } else {
+      console.warn("선택한 권역의 GeoJSON 지명을 찾지 못했습니다:", selectedRegions);
+    }
 
     loadCommuteFlows();
   })
@@ -875,6 +684,7 @@ fetch("./geo/korea_sido.geojson")
 // ============================================================
 
 function loadCommuteFlows() {
+  if (["gangwon", "jeonbuk", "jeju"].includes(currentRegionKey)) return;
   fetch(currentConfig.dataFile)
     .then(response => {
       if (!response.ok) {
@@ -933,6 +743,9 @@ function loadCommuteFlows() {
         Number(b.DT) - Number(a.DT)
       );
 
+      // 지도 이동선과 완전히 동일한 OD 자료로 통계 카드를 생성합니다.
+      renderFlowOverview(flows);
+
       // 각 OD별 경로와 화살표 생성
       flows.forEach((flow, rank) => {
         const origin = centers[flow.C1_NM];
@@ -951,13 +764,13 @@ function loadCommuteFlows() {
           160
         );
 
-        // 희미한 경로 선
+        // 팝업 상호작용을 위한 투명 경로(경로 본체는 Canvas에서 표시)
         const line = L.polyline(
           curvePoints,
           {
             color: flowStyle.color,
-            weight: 1,
-            opacity: 0.06
+            weight: 10,
+            opacity: 0.005
           }
         ).addTo(map);
 
@@ -971,7 +784,7 @@ function loadCommuteFlows() {
           <strong>${value.toLocaleString()}명</strong>
         `);
 
-        // 부드러운 화살표 애니메이션
+        // 얇은 경로 + 데이터 스트림 파티클 애니메이션
         const duration = getAnimationDuration(value);
 
         animateFlowArrow(
@@ -985,6 +798,11 @@ function loadCommuteFlows() {
 
     .catch(error => {
       console.error("KOSIS 데이터 로딩 오류:", error);
+      const panel = document.getElementById("regionOverview");
+      if (panel) {
+        panel.hidden = false;
+        panel.innerHTML = `<div class="overview-heading">${currentConfig.label} 이동 분석</div><p class="overview-loading">OD 데이터를 불러오지 못했습니다.</p>`;
+      }
     });
 }
 
@@ -994,146 +812,65 @@ function loadCommuteFlows() {
 // ============================================================
 
 function getFlowStyle(rank, total) {
-  const percentile = (rank / total) * 100;
+  const percentile = total > 0 ? (rank / total) * 100 : 100;
 
-  if (percentile < 20) {
-    return {
-      color: "#9E3D63",
-      arrowSize: 17,
-      lineWeight: 4.8
-    };
-  }
-
-  if (percentile < 40) {
-    return {
-      color: "#B95B7B",
-      arrowSize: 15,
-      lineWeight: 4.1
-    };
-  }
-
-  if (percentile < 60) {
-    return {
-      color: "#D17A97",
-      arrowSize: 13,
-      lineWeight: 3.5
-    };
-  }
-
-  if (percentile < 80) {
-    return {
-      color: "#E3A0B5",
-      arrowSize: 11,
-      lineWeight: 3
-    };
-  }
-
+  if (percentile < 20) return {
+    color: "#E5B2EF", lineWeight: 2.0, opacity: 0.72,
+    particleSize: 3.6, particleCount: 5
+  };
+  if (percentile < 40) return {
+    color: "#B58AF4", lineWeight: 1.7, opacity: 0.65,
+    particleSize: 3.1, particleCount: 4
+  };
+  if (percentile < 60) return {
+    color: "#8585F7", lineWeight: 1.5, opacity: 0.57,
+    particleSize: 2.8, particleCount: 3
+  };
+  if (percentile < 80) return {
+    color: "#48B9F5", lineWeight: 1.3, opacity: 0.48,
+    particleSize: 2.5, particleCount: 3
+  };
   return {
-    color: "#F0C6D2",
-    arrowSize: 9,
-    lineWeight: 2.5
+    color: "#00C2D7", lineWeight: 1.1, opacity: 0.38,
+    particleSize: 2.2, particleCount: 2
   };
 }
 
-
 // ============================================================
-// 12. 이동량 순위 범례
+// 12. 실제 데이터 표현 방식에 맞춘 권역별 범례
 // ============================================================
-
-const legend = L.control({
-  position: "bottomleft"
-});
-
+const legend = L.control({ position: "bottomleft" });
 legend.onAdd = function () {
-  const div = L.DomUtil.create(
-    "div",
-    "flow-legend"
-  );
-
-  // 강원: 이동량 순위 대신 통근·통학 구성비 안내
+  const div = L.DomUtil.create("div", "flow-legend");
   if (["gangwon", "jeonbuk", "jeju"].includes(currentRegionKey)) {
     div.innerHTML = `
-      <div class="legend-title">
-        강원 통근·통학 인구
-      </div>
+      <div class="legend-eyebrow">DATA GUIDE</div>
+      <div class="legend-title">${currentConfig.label} · 통근·통학 구성</div>
+      <div class="legend-item"><span class="legend-color" style="background:#FF9F43"></span>관내 통근·통학</div>
+      <div class="legend-item"><span class="legend-color" style="background:#A477F5"></span>기타 통근·통학지 (자료 존재 시)</div>
 
-      <div class="legend-item">
-        <span class="legend-color"
-          style="background:#568C83;">
-        </span>
-        강원 내부 이동
-      </div>
-
-      <div class="legend-item">
-        <span class="legend-color"
-          style="background:#D9A86C;">
-        </span>
-        기타 지역
-      </div>
-
-      <div style="
-        margin-top:10px;
-        font-size:12px;
-        line-height:1.7;
-      ">
-        강원도에 마우스를 올리면<br>
-        전체 인구와 구성비를 확인할 수 있습니다.
-      </div>
-
-      <div style="
-        margin-top:6px;
-        font-size:11px;
-        opacity:0.7;
-      ">
-        기준: 2020년 · KOSIS
-      </div>
+      <p class="legend-description">화살표 없음 · 세부 이동 경로 미제공<br>숫자와 구성비는 우측 통계 카드에서 확인</p>
     `;
-
-    return div;
+  } else {
+    const tiers = [
+      ["#E5B2EF", "상위 0–20%", "2px", "5px"],
+      ["#B58AF4", "상위 20–40%", "1.7px", "4.5px"],
+      ["#8585F7", "상위 40–60%", "1.5px", "4px"],
+      ["#48B9F5", "상위 60–80%", "1.3px", "3.5px"],
+      ["#00C2D7", "상위 80–100%", "1.1px", "3px"]
+    ];
+    div.innerHTML = `
+      <div class="legend-eyebrow">FLOW INTENSITY</div>
+      <div class="legend-title">권역 내 이동량 순위</div>
+      ${tiers.map(([color,label,weight,dot]) => `
+        <div class="legend-item">
+          <span class="flow-line-demo" style="--flow-color:${color};--flow-weight:${weight};--dot-size:${dot}"><i></i></span>
+          ${label}
+        </div>
+      `).join("")}
+      <p class="legend-description">곡선은 실제 경로가 아닌 지역 간 이동 관계입니다.</p>
+    `;
   }
-
-  div.innerHTML = `
-    <div class="legend-title">
-      통근·통학 이동량 순위
-    </div>
-
-    <div class="legend-item">
-      <span class="legend-color"
-        style="background:#8F2746;">
-      </span>
-      상위 0~20%
-    </div>
-
-    <div class="legend-item">
-      <span class="legend-color"
-        style="background:#B8405E;">
-      </span>
-      상위 20~40%
-    </div>
-
-    <div class="legend-item">
-      <span class="legend-color"
-        style="background:#D9657C;">
-      </span>
-      상위 40~60%
-    </div>
-
-    <div class="legend-item">
-      <span class="legend-color"
-        style="background:#EA91A4;">
-      </span>
-      상위 60~80%
-    </div>
-
-    <div class="legend-item">
-      <span class="legend-color"
-        style="background:#F3BBC7;">
-      </span>
-      상위 80~100%
-    </div>
-  `;
-
   return div;
 };
-
 legend.addTo(map);

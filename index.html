@@ -11,18 +11,20 @@
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
   >
 
-  <link rel="stylesheet" href="./css/style.css?v=20261109-2">
+  <link rel="stylesheet" href="./css/style.css?v=20261116-insights-1">
 </head>
 
 <body>
 
-  <div class="title-box">
+  <header class="title-box">
+    <div class="brand-eyebrow"><span class="brand-mark"></span> COMMUTE / DATA STREAM</div>
     <h1>통근·통학 이동 흐름 지도</h1>
-    <p>KOSIS 인구총조사 2020</p>
-  </div>
+    <p>KOSIS 인구총조사 · 2020년 · 12세 이상</p>
+  </header>
 
   <div class="controls">
-    <select id="regionSelect">
+    <label for="regionSelect">권역 탐색 <span>REGION</span></label>
+    <select id="regionSelect" aria-label="통근·통학 권역 선택">
       <option value="capital">서울·인천·경기</option>
       <option value="southeast">부산·울산·경남</option>
       <option value="daegu_gyeongbuk">대구·경북</option>
@@ -35,12 +37,13 @@
   </div>
 
   <div id="map"></div>
+  <aside id="regionOverview" class="region-overview" aria-live="polite" hidden></aside>
 
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
   </script>
 
-  <script src="./js/map.js?v=20261116-3"></script>
+  <script src="./js/map.js?v=20261116-insights-1"></script>
 
 </body>
 </html>
