@@ -90,7 +90,16 @@ const regionConfigs = {
       "강원특별자치도": [37.8228, 128.1555]
     },
     dataFile: "./data/gangwon_2020.json"
+  },
+  jeonbuk: {
+    label: "전북",
+    regions: ["전라북도"],
+    centers: {
+      "전북특별자치도": [35.7175, 127.1530]
+    },
+    dataFile: "./data/jeonbuk_2020.json"
   }
+
 };
 
 
@@ -135,9 +144,20 @@ async function loadAllRegionStats() {
       
       const data = await response.json();
       const regionSet = new Set(config.regions);
+      
+      // 단일 시도 권역: 지역 내부 / 기타 이동 인구
+      const singleRegionCodes = {
+        gangwon: "32",
+        jeonbuk: "35"
+      };
 
-      // 강원은 광역단위 OD가 아닌 지역 내·기타 구성비로 처리
-      if (config === regionConfigs.gangwon) {
+      const regionCode = Object.entries(regionConfigs)
+        .find(([, value]) => value === config)?.[0];
+
+      if (singleRegionCodes[regionCode]) {
+
+        const code = singleRegionCodes[regionCode];
+
         const findValue = (origin, destination) => {
           const row = data.find(d =>
             d.ITM_ID === "T1" &&
@@ -151,11 +171,17 @@ async function loadAllRegionStats() {
           return Number.isFinite(value) ? value : null;
         };
 
-        const total = findValue("32", "00");
-        const within = findValue("32", "32");
+        const total = findValue(code, "00");
+        const within = findValue(code, code);
 
-        if (total === null || within === null || within > total) {
-          console.warn("강원 통계 필수 항목 확인 필요", {
+        if (
+          total === null ||
+          within === null ||
+          total <= 0 ||
+          within < 0 ||
+          within > total
+        ) {
+          console.warn(`${config.label} 통계 확인 필요`, {
             total,
             within
           });
@@ -164,7 +190,7 @@ async function loadAllRegionStats() {
 
         const outside = total - within;
 
-        regionStatsByName["강원특별자치도"] = {
+        regionStatsByName[config.regions[0]] = {
           type: "summary",
           total,
           within,
@@ -724,7 +750,7 @@ fetch("./geo/korea_sido.geojson")
               </div>
 
               <div class="region-tooltip-label">
-                강원 내부
+                ${name} 내부
               </div>
               <div class="region-tooltip-value">
                 ${stats.within.toLocaleString()}명
@@ -1016,7 +1042,7 @@ legend.onAdd = function () {
   );
 
   // 강원: 이동량 순위 대신 통근·통학 구성비 안내
-  if (currentRegionKey === "gangwon") {
+  if (["gangwon", "jeonbuk"].includes(currentRegionKey)) {
     div.innerHTML = `
       <div class="legend-title">
         강원 통근·통학 인구
