@@ -83,7 +83,7 @@ body { font-family:"Pretendard","Inter","Noto Sans KR",sans-serif; color:var(--i
 .overview-loading { color:var(--muted); font-size:11px; margin:17px 0 0; line-height:1.7; }
 
 /* Numbered editorial sections */
-.insights-section { margin-top:20px; padding-top:16px; border-top:1px solid var(--stone); }
+.insights-section { margin-top:20px; padding-top:16px; }
 .insights-section-title { display:flex; align-items:center; gap:10px; font-size:12px; font-weight:800; letter-spacing:-.025em; color:var(--ink); margin-bottom:17px; }
 .section-number { min-width:22px; color:var(--cobalt); font:700 10px "Inter",sans-serif; letter-spacing:.06em; }
 .top-flow-item + .top-flow-item { border-top:1px solid #EAF0F6; margin-top:13px; padding-top:13px; }
@@ -215,4 +215,30 @@ body { font-family:"Pretendard","Inter","Noto Sans KR",sans-serif; color:var(--i
   .region-overview { padding:17px; }
   .stat-block strong { font-size:18px; }
   .stat-grid--single .stat-block:first-child strong { font-size:30px; }
+}
+
+/* 지도 하단 소속 및 제작자 표기 */
+.map-credit {
+  position: fixed;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: #718096;
+  opacity: 0.65;
+
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@media (max-width: 700px) {
+  .map-credit {
+    bottom: 10px;
+    font-size: 8px;
+    letter-spacing: 0;
+  }
 }
