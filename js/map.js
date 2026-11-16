@@ -10,15 +10,16 @@ const map = L.map("map", {
 
 map.setView([37.45, 126.95], 8);
 
+// CARTO Positron: neutral light tiles keep labels readable without sepia filters.
+// Tile colors are provider-defined; CSS background is an approximation during loading.
 L.tileLayer(
-  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
   {
-    maxZoom: 18,
-    opacity: 0.29,
+    maxZoom: 19,
+    opacity: 0.85,
     attribution: "&copy; OpenStreetMap contributors"
   }
 ).addTo(map);
-
 
 // ============================================================
 // 2. 권역별 설정
@@ -276,15 +277,15 @@ function renderFlowOverview(flows) {
   });
   const maxRegionFlow = Math.max(1, ...regionRows.flatMap(row => [row.inbound, row.outbound]));
   panel.innerHTML = `
-    <div class="overview-eyebrow">MOBILITY INSIGHTS · 2020</div>
+    <div class="overview-eyebrow">01 / REGIONAL MOBILITY <span>2020</span></div>
     <div class="overview-heading">${currentConfig.label} 이동 분석</div>
     <div class="overview-subtitle">12세 이상 · 권역 내 서로 다른 시·도 간 이동</div>
-    <div class="stat-grid">
+    <div class="stat-grid stat-grid--mobility">
       <div class="stat-block"><span>총 OD 이동량</span><strong>${fmt(total)}</strong></div>
       <div class="stat-block"><span>분석 이동 경로</span><strong>${flows.length.toLocaleString("ko-KR")}개</strong></div>
     </div>
     <div class="insights-section">
-      <div class="insights-section-title">이동량 TOP 3</div>
+      <div class="insights-section-title"><span class="section-number">02</span> 이동량 TOP 3</div>
       ${topFlows.length ? topFlows.map((flow, i) => `
         <div class="top-flow-item">
           <div class="top-flow-head"><span><b>${i + 1}위</b> ${flow.C1_NM} → ${flow.C2_NM}</span><strong>${fmt(Number(flow.DT))}</strong></div>
@@ -293,7 +294,7 @@ function renderFlowOverview(flows) {
       `).join("") : '<p class="overview-loading">표시할 이동 경로가 없습니다.</p>'}
     </div>
     <div class="insights-section">
-      <div class="insights-section-title">지역별 유입·유출 비교</div>
+      <div class="insights-section-title"><span class="section-number">03</span> 지역별 유입·유출 비교</div>
       <div class="flow-comparison-key"><span><i class="comparison-dot inbound"></i>유입</span><span><i class="comparison-dot outbound"></i>유출</span></div>
       ${regionRows.map(row => `
         <div class="region-flow-row">
@@ -316,7 +317,7 @@ function renderRegionOverview() {
   const isSingle = ["gangwon", "jeonbuk", "jeju"].includes(currentRegionKey);
   if (!isSingle) {
     panel.hidden = false;
-    panel.innerHTML = `<div class="overview-eyebrow">MOBILITY INSIGHTS · 2020</div><div class="overview-heading">${currentConfig.label} 이동 분석</div><p class="overview-loading">권역 내 OD 통계를 불러오는 중입니다.</p>`;
+    panel.innerHTML = `<div class="overview-eyebrow">01 / REGIONAL MOBILITY <span>2020</span></div><div class="overview-heading">${currentConfig.label} 이동 분석</div><p class="overview-loading">권역 내 OD 통계를 불러오는 중입니다.</p>`;
     return;
   }
   const stats = regionStatsByName[currentConfig.regions[0]];
@@ -331,10 +332,10 @@ function renderRegionOverview() {
     ? `전체와 관내의 차이 ${format(stats.outside)}`
     : `전체와 관내 집계의 차이 0명 · 기타 이동 여부 판단 불가`;
   panel.innerHTML = `
-    <div class="overview-eyebrow">REGIONAL PROFILE · 2020</div>
+    <div class="overview-eyebrow">01 / REGIONAL PROFILE <span>2020</span></div>
     <div class="overview-heading">${currentConfig.label} 통근·통학 현황</div>
     <div class="overview-subtitle">12세 이상 · 현 거주지 기준</div>
-    <div class="stat-grid">
+    <div class="stat-grid stat-grid--single">
       <div class="stat-block"><span>전체 통근·통학</span><strong>${format(stats.total)}</strong></div>
       <div class="stat-block"><span>관내 통근·통학</span><strong>${format(stats.within)}</strong></div>
     </div>
@@ -570,9 +571,9 @@ fetch("./geo/korea_sido.geojson")
       const selected = selectedRegions.includes(name);
 
       return {
-        color: selected ? "#009EA8" : "#CEDFE8",
+        color: selected ? "#4779FA" : "#DCE6EF",
         weight: selected ? 1.7 : 0.9,
-        fillColor: selected ? "#C4F7EB" : "#F0F5FA",
+        fillColor: selected ? "#E5E9FF" : "#F7FAFC",
         fillOpacity: selected ? 0.46 : 0.30
       };
     }
@@ -635,9 +636,9 @@ fetch("./geo/korea_sido.geojson")
 
       layer.on("mouseover", function () {
         layer.setStyle({
-          fillColor: selected ? "#3ED5B2" : "#E0FAF3",
+          fillColor: selected ? "#AFC4E9" : "#E5E9FF",
           fillOpacity: selected ? 0.64 : 0.48,
-          color: selected ? "#009EA8" : "#B7CDD8",
+          color: selected ? "#4779FA" : "#A3B9D8",
           weight: 2
         });
       });
@@ -815,23 +816,23 @@ function getFlowStyle(rank, total) {
   const percentile = total > 0 ? (rank / total) * 100 : 100;
 
   if (percentile < 20) return {
-    color: "#E5B2EF", lineWeight: 2.0, opacity: 0.72,
+    color: "#F0448C", lineWeight: 2.0, opacity: 0.72,
     particleSize: 3.6, particleCount: 5
   };
   if (percentile < 40) return {
-    color: "#B58AF4", lineWeight: 1.7, opacity: 0.65,
+    color: "#D34FE5", lineWeight: 1.7, opacity: 0.65,
     particleSize: 3.1, particleCount: 4
   };
   if (percentile < 60) return {
-    color: "#8585F7", lineWeight: 1.5, opacity: 0.57,
+    color: "#925BFA", lineWeight: 1.5, opacity: 0.57,
     particleSize: 2.8, particleCount: 3
   };
   if (percentile < 80) return {
-    color: "#48B9F5", lineWeight: 1.3, opacity: 0.48,
+    color: "#4779FA", lineWeight: 1.3, opacity: 0.48,
     particleSize: 2.5, particleCount: 3
   };
   return {
-    color: "#00C2D7", lineWeight: 1.1, opacity: 0.38,
+    color: "#16B8D4", lineWeight: 1.1, opacity: 0.38,
     particleSize: 2.2, particleCount: 2
   };
 }
@@ -846,18 +847,18 @@ legend.onAdd = function () {
     div.innerHTML = `
       <div class="legend-eyebrow">DATA GUIDE</div>
       <div class="legend-title">${currentConfig.label} · 통근·통학 구성</div>
-      <div class="legend-item"><span class="legend-color" style="background:#FF9F43"></span>관내 통근·통학</div>
-      <div class="legend-item"><span class="legend-color" style="background:#A477F5"></span>기타 통근·통학지 (자료 존재 시)</div>
+      <div class="legend-item"><span class="legend-color" style="background:#925BFA"></span>관내 통근·통학</div>
+      <div class="legend-item"><span class="legend-color" style="background:#16B8D4"></span>기타 통근·통학지 (자료 존재 시)</div>
 
       <p class="legend-description">화살표 없음 · 세부 이동 경로 미제공<br>숫자와 구성비는 우측 통계 카드에서 확인</p>
     `;
   } else {
     const tiers = [
-      ["#E5B2EF", "상위 0–20%", "2px", "5px"],
-      ["#B58AF4", "상위 20–40%", "1.7px", "4.5px"],
-      ["#8585F7", "상위 40–60%", "1.5px", "4px"],
-      ["#48B9F5", "상위 60–80%", "1.3px", "3.5px"],
-      ["#00C2D7", "상위 80–100%", "1.1px", "3px"]
+      ["#F0448C", "상위 0–20%", "2px", "5px"],
+      ["#D34FE5", "상위 20–40%", "1.7px", "4.5px"],
+      ["#925BFA", "상위 40–60%", "1.5px", "4px"],
+      ["#4779FA", "상위 60–80%", "1.3px", "3.5px"],
+      ["#16B8D4", "상위 80–100%", "1.1px", "3px"]
     ];
     div.innerHTML = `
       <div class="legend-eyebrow">FLOW INTENSITY</div>
