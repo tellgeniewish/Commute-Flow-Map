@@ -127,6 +127,23 @@ const configs = [
 
     outputFile:
       "jeonbuk_2020.json"
+  },
+
+
+  // 제주
+  {
+    name: "제주",
+
+    tblId: "DT_1PA2012",
+
+    objL1:
+      "00+39+",
+
+    objL2:
+      "00+39+90+99+",
+
+    outputFile:
+      "jeju_2020.json"
   }
 
 ];
