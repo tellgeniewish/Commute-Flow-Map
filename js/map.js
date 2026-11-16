@@ -83,12 +83,11 @@ const regionConfigs = {
     },
     dataFile: "./data/daejeon_sejong_chungcheong_2020.json"
   },
-
   gangwon: {
     label: "강원",
-    regions: ["강원도"],
+    regions: ["강원특별자치도"],
     centers: {
-      "강원도": [37.8228, 128.1555]
+      "강원특별자치도": [37.8228, 128.1555]
     },
     dataFile: "./data/gangwon_2020.json"
   }
@@ -133,9 +132,49 @@ async function loadAllRegionStats() {
           `${config.dataFile}을 불러오지 못했습니다.`
         );
       }
-
+      
       const data = await response.json();
       const regionSet = new Set(config.regions);
+
+      // 강원은 광역단위 OD가 아닌 지역 내·기타 구성비로 처리
+      if (config === regionConfigs.gangwon) {
+        const findValue = (origin, destination) => {
+          const row = data.find(d =>
+            d.ITM_ID === "T1" &&
+            String(d.C1) === origin &&
+            String(d.C2) === destination
+          );
+
+          if (!row) return null;
+
+          const value = Number(row.DT);
+          return Number.isFinite(value) ? value : null;
+        };
+
+        const total = findValue("32", "00");
+        const within = findValue("32", "32");
+
+        if (total === null || within === null || within > total) {
+          console.warn("강원 통계 필수 항목 확인 필요", {
+            total,
+            within
+          });
+          return;
+        }
+
+        const outside = total - within;
+
+        regionStatsByName["강원특별자치도"] = {
+          type: "summary",
+          total,
+          within,
+          outside,
+          withinPercent: (within / total) * 100,
+          outsidePercent: (outside / total) * 100
+        };
+
+        return;
+      }
 
       const flows = data.filter(d =>
         d.ITM_ID === "T1" &&
@@ -668,30 +707,60 @@ fetch("./geo/korea_sido.geojson")
         () => {
           const stats = regionStatsByName[name];
 
-          if (stats) {
+          
+        if (stats) {
+          // 강원: 전체 / 지역 내 / 기타 통근·통학 인구
+          if (stats.type === "summary") {
             return `
               <div class="region-tooltip-name">
-                ${name} 권역 내 통근·통학 인구
+                ${name} 통근·통학 인구 (2020)
               </div>
 
               <div class="region-tooltip-label">
-                유입
+                전체
               </div>
-
               <div class="region-tooltip-value">
-                ${stats.inflow.toLocaleString()}명
+                ${stats.total.toLocaleString()}명
               </div>
 
               <div class="region-tooltip-label">
-                유출
+                강원 내부
+              </div>
+              <div class="region-tooltip-value">
+                ${stats.within.toLocaleString()}명
+                (${stats.withinPercent.toFixed(2)}%)
               </div>
 
+              <div class="region-tooltip-label">
+                기타 지역
+              </div>
               <div class="region-tooltip-value">
-                ${stats.outflow.toLocaleString()}명
+                ${stats.outside.toLocaleString()}명
+                (${stats.outsidePercent.toFixed(2)}%)
               </div>
             `;
           }
+          // 기존 권역: 유입 / 유출
+          return `
+            <div class="region-tooltip-name">
+              ${name} 권역 내 통근·통학 인구
+            </div>
 
+            <div class="region-tooltip-label">
+              유입
+            </div>
+            <div class="region-tooltip-value">
+              ${stats.inflow.toLocaleString()}명
+            </div>
+
+            <div class="region-tooltip-label">
+              유출
+            </div>
+            <div class="region-tooltip-value">
+              ${stats.outflow.toLocaleString()}명
+            </div>
+          `;
+        }
           return name;
         },
         {
@@ -701,33 +770,13 @@ fetch("./geo/korea_sido.geojson")
           className: "region-tooltip"
         }
       );
-
-      // 클릭한 지역의 권역으로 전환
+      
+      // 클릭한 지역이 속한 권역으로 자동 전환
       layer.on("click", function () {
-        let targetKey = null;
 
-        if (
-          ["서울특별시", "인천광역시", "경기도"].includes(name)
-        ) {
-          targetKey = "capital";
-        } else if (
-          ["부산광역시", "울산광역시", "경상남도"].includes(name)
-        ) {
-          targetKey = "southeast";
-        } else if (
-          ["대구광역시", "경상북도"].includes(name)
-        ) {
-          targetKey = "daegu_gyeongbuk";
-        } else if (
-          [
-            "대전광역시",
-            "세종특별자치시",
-            "충청북도",
-            "충청남도"
-          ].includes(name)
-        ) {
-          targetKey = "chungcheong";
-        }
+        const targetKey = Object.keys(regionConfigs).find(
+          key => regionConfigs[key].regions.includes(name)
+        );
 
         if (
           targetKey &&
@@ -735,6 +784,7 @@ fetch("./geo/korea_sido.geojson")
         ) {
           window.location.search = `?region=${targetKey}`;
         }
+
       });
 
       layer.on("mouseover", function () {
@@ -964,6 +1014,48 @@ legend.onAdd = function () {
     "div",
     "flow-legend"
   );
+
+  // 강원: 이동량 순위 대신 통근·통학 구성비 안내
+  if (currentRegionKey === "gangwon") {
+    div.innerHTML = `
+      <div class="legend-title">
+        강원 통근·통학 인구
+      </div>
+
+      <div class="legend-item">
+        <span class="legend-color"
+          style="background:#568C83;">
+        </span>
+        강원 내부 이동
+      </div>
+
+      <div class="legend-item">
+        <span class="legend-color"
+          style="background:#D9A86C;">
+        </span>
+        기타 지역
+      </div>
+
+      <div style="
+        margin-top:10px;
+        font-size:12px;
+        line-height:1.7;
+      ">
+        강원도에 마우스를 올리면<br>
+        전체 인구와 구성비를 확인할 수 있습니다.
+      </div>
+
+      <div style="
+        margin-top:6px;
+        font-size:11px;
+        opacity:0.7;
+      ">
+        기준: 2020년 · KOSIS
+      </div>
+    `;
+
+    return div;
+  }
 
   div.innerHTML = `
     <div class="legend-title">
