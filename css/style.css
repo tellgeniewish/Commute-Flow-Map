@@ -98,15 +98,17 @@ body { font-family:"DM Sans","Noto Sans KR",sans-serif; color:var(--ink); backgr
 .top-flow-item + .top-flow-item { margin-top:12px; }
 .top-flow-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; font-size:10px; margin-bottom:7px; }
 .top-flow-head span { min-width:0; color:var(--ink); }
-.top-flow-head b { color:#8585F7; margin-right:4px; }
+.top-flow-head b { color:#26445F; margin-right:4px; }
 .top-flow-head strong { color:var(--ink); font-size:11px; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .top-flow-track { height:6px; background:#E9F3F9; border-radius:100px; overflow:hidden; }
 .top-flow-track span { display:block; height:100%; border-radius:100px; }
 .flow-comparison-key { display:flex; gap:15px; margin-bottom:13px; font-size:10px; color:var(--muted); }
 .flow-comparison-key span { display:flex; align-items:center; gap:5px; }
 .comparison-dot { display:inline-block; width:7px; height:7px; border-radius:50%; }
-.comparison-dot.inbound { background:#48B9F5; }
-.comparison-dot.outbound { background:#B58AF4; }
+
+.comparison-dot.inbound { background:#FFCB47; }
+.comparison-dot.outbound { background:#48B9F5; }
+
 .region-flow-row + .region-flow-row { margin-top:16px; }
 .region-flow-label { display:flex; justify-content:space-between; gap:8px; align-items:center; margin-bottom:8px; }
 .region-flow-label strong { font-size:11px; color:var(--ink); }
@@ -115,8 +117,10 @@ body { font-family:"DM Sans","Noto Sans KR",sans-serif; color:var(--ink); backgr
 .region-flow-bar { display:grid; grid-template-columns:22px minmax(0,1fr) 84px; align-items:center; gap:8px; font-size:9px; color:var(--muted); }
 .region-flow-bar > div { height:7px; background:#E9F3F9; border-radius:100px; overflow:hidden; }
 .region-flow-bar i { display:block; height:100%; border-radius:100px; }
-.region-flow-bar i.inbound { background:#48B9F5; }
-.region-flow-bar i.outbound { background:#B58AF4; }
+
+.region-flow-bar i.inbound { background:#FFCB47; }
+.region-flow-bar i.outbound { background:#48B9F5; }
+
 .region-flow-bar b { justify-self:end; white-space:nowrap; font-size:10px; font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums; }
 @media(max-width:700px) {
   .region-overview { max-height:min(42vh,335px); bottom:14px; }
