@@ -98,6 +98,14 @@ const regionConfigs = {
       "전북특별자치도": [35.7175, 127.1530]
     },
     dataFile: "./data/jeonbuk_2020.json"
+  },
+  jeju: {
+    label: "제주",
+    regions: ["제주특별자치도"],
+    centers: {
+      "제주특별자치도": [33.4996, 126.5312]
+    },
+    dataFile: "./data/jeju_2020.json"
   }
 
 };
@@ -148,7 +156,8 @@ async function loadAllRegionStats() {
       // 단일 시도 권역: 지역 내부 / 기타 이동 인구
       const singleRegionCodes = {
         gangwon: "32",
-        jeonbuk: "35"
+        jeonbuk: "35",
+        jeju: "39"
       };
 
       const regionCode = Object.entries(regionConfigs)
@@ -1042,7 +1051,7 @@ legend.onAdd = function () {
   );
 
   // 강원: 이동량 순위 대신 통근·통학 구성비 안내
-  if (["gangwon", "jeonbuk"].includes(currentRegionKey)) {
+  if (["gangwon", "jeonbuk", "jeju"].includes(currentRegionKey)) {
     div.innerHTML = `
       <div class="legend-title">
         강원 통근·통학 인구
