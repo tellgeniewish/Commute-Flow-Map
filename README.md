@@ -128,26 +128,26 @@
 Commute-Flow-Map/
 ├── .github/
 │   └── workflows/
-│       └── fetch-kosis.yml                  # KOSIS 데이터 수집 자동화
+│       └── fetch-kosis.yml                   # KOSIS 데이터 수집 자동화
 ├── css/
-│   └── style.css                           # 화면 스타일 및 통계 패널
+│   └── style.css                             # 화면 스타일 및 통계 패널
 ├── data/
-│   ├── capital_2020.json                   # 서울·인천·경기 통계
-│   ├── busan_ulsan_gyeongnam_2020.json      # 부산·울산·경남 통계
-│   ├── daegu_gyeongbuk_2020.json           # 대구·경북 통계
-│   ├── gwangju_jeonnam_2020.json           # 광주·전남 통계
-│   ├── daejeon_sejong_chungcheong_2020.json # 대전·세종·충북·충남 통계
-│   ├── gangwon_2020.json                   # 강원 통계
-│   ├── jeonbuk_2020.json                   # 전북 통계
-│   └── jeju_2020.json                      # 제주 통계
+│   ├── capital_2020.json                     # 서울·인천·경기 통계
+│   ├── busan_ulsan_gyeongnam_2020.json       # 부산·울산·경남 통계
+│   ├── daegu_gyeongbuk_2020.json             # 대구·경북 통계
+│   ├── gwangju_jeonnam_2020.json             # 광주·전남 통계
+│   ├── daejeon_sejong_chungcheong_2020.json  # 대전·세종·충북·충남 통계
+│   ├── gangwon_2020.json                     # 강원 통계
+│   ├── jeonbuk_2020.json                     # 전북 통계
+│   └── jeju_2020.json                        # 제주 통계
 ├── geo/
-│   └── korea_sido.geojson                  # 전국 시·도 행정경계
+│   └── korea_sido.geojson                    # 전국 시·도 행정경계
 ├── js/
-│   └── map.js                              # 지도·OD 분석·애니메이션·통계 패널
+│   └── map.js                                # 지도·OD 분석·애니메이션·통계 패널
 ├── scripts/
-│   └── fetch-kosis.js                      # KOSIS OpenAPI 수집 스크립트
-├── index.html                              # 지도 서비스 메인 페이지
-└── README.md                               # 프로젝트 문서
+│   └── fetch-kosis.js                        # KOSIS OpenAPI 수집 스크립트
+├── index.html                                # 지도 서비스 메인 페이지
+└── README.md                                 # 프로젝트 문서
 ```
 
 `data/`에는 2020년 기준 8개 권역의 KOSIS JSON 파일이 저장되어 있으며, `geo/`에는 전국 시·도 경계를 표시하기 위한 공간자료가 포함되어 있습니다.
