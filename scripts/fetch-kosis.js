@@ -111,6 +111,22 @@ const configs = [
 
     outputFile:
       "gangwon_2020.json"
+  },
+
+  // 전북
+  {
+    name: "전북",
+
+    tblId: "DT_1PA2011",
+
+    objL1:
+      "00+35+",
+
+    objL2:
+      "00+35+90+99+",
+
+    outputFile:
+      "jeonbuk_2020.json"
   }
 
 ];
